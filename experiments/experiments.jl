@@ -1,35 +1,34 @@
 using PulseAlgorithm
-using Random
 using Distributions
-include("structured_instance_generator.jl")
 
-# Set the seed for reproducibility
-Random.seed!(1234)
+include("util.jl")
 
-# Fix CV and ρ for all experiments
-ρ = 1.0 #this is fixed for our experiments
-CV = 0.8 #this is fixed for our experiments
+# Fixed parameters for our experiments
+ρ = 1.0 
+CV = 0.8 
 α = 0.9
 γ = 0.4
 max_depth = 2
 
 ### Chicago Regional ###
-
-# Instance generation
+network_name = "CR"
 toll_factor_ChicagoRegional = 0.1 #taken from TransportationsNetworks
 distance_factor_ChicagoRegional = 0.25 #taken from TransportationsNetworks
 
 folder_path = raw"data\ChicagoRegional\shortest_paths"
 graph = PulseAlgorithm.load_graph_from_ta(raw"data\ChicagoRegional\ChicagoRegional_net.tntp", 
-raw"data\ChicagoRegional\ChicagoRegional_flow.tntp",  "SF", CV, toll_factor_ChicagoRegional, distance_factor_ChicagoRegional)
+raw"data\ChicagoRegional\ChicagoRegional_flow.tntp",  "CR", CV, toll_factor_ChicagoRegional, distance_factor_ChicagoRegional)
 covariance_dict = PulseAlgorithm.get_covariance_dict(graph, ρ, max_depth)
 
-n = 10 # sample n nodes from graph.nodes uniformly
-keys_list = collect(keys(graph.nodes))  
-sampled_keys = sample(keys_list, n, replace=false)  
+sampled_keys = [10584, 9053, 5332, 10172, 6784, 2611, 8851, 11851, 8392, 11012]
+target_node = graph.nodes[sampled_keys[1]].name
 
-for key in sampled_keys
-    PulseAlgorithm.write_shortest_paths(graph, graph.nodes[key].name, folder_path, "CR")
-end
+n = 10000
+total_instance_info, total_elapsed_time = run_aggregated_experiments(graph, target_node, ρ, α, γ, max_depth, folder_path, network_name, true, n)
 
-# Run experiments
+avg_elapsed_time = total_elapsed_time/n
+#avg total instance instance_info
+total_instance_info["pruned_by_bounds"]/n
+total_instance_info["pruned_by_feasibility"]/n
+total_instance_info["total_length_pruned_by_bounds"]/n
+total_instance_info["total_length_pruned_by_feasibility"]/n
