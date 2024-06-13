@@ -46,6 +46,7 @@ covariance_dict = get_covariance_dict(graph, ρ, max_depth)
 n = 10 # sample n nodes from graph.nodes uniformly
 keys_list = collect(keys(graph.nodes))
 sampled_keys = sample(keys_list, n, replace=false)
+println(sampled_keys)
 
 for key in sampled_keys
     write_shortest_paths(graph, graph.nodes[key].name, folder_path, "CS")
@@ -63,7 +64,27 @@ covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
 n = 10 # sample n nodes from graph.nodes uniformly
 keys_list = collect(keys(graph.nodes))
 sampled_keys = sample(keys_list, n, replace=false)
+println(sampled_keys)
 
 for key in sampled_keys
     write_shortest_paths(graph, graph.nodes[key].name, folder_path, "AU")
+end
+
+### Sydney ###
+network_name = "SY"
+toll_factor_Sydney = 0.1 #Use Chicago Regional's toll factor as a reference
+distance_factor_Sydney = 0.25 #Use Chicago Regional's distance factor as a reference
+
+folder_path = raw"data\Sydney\shortest_paths"
+graph = load_graph_from_ta_without_flow_Sydney(raw"data\Sydney\Sydney_net.tntp", "SY", CV, toll_factor_Sydney, distance_factor_Sydney)
+covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
+
+n = 10 # sample n nodes from graph.nodes uniformly
+keys_list = collect(keys(graph.nodes))
+sampled_keys = sample(keys_list, n, replace=false)
+println(sampled_keys)
+
+for i in ProgressBar(1:length(sampled_keys))
+    key = sampled_keys[i]
+    write_shortest_paths(graph, graph.nodes[key].name, folder_path, "SY")
 end
