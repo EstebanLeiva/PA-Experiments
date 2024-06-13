@@ -6,8 +6,8 @@ using DataFrames
 using ProgressBars
 
 function get_timeBudget(graph::Graph, start_node::Int, target_node::Int, α::Float64, γ::Float64, cov_dict::DefaultDict{Tuple{Int, Int, Int, Int}, Float64})
-    shortest_mean_path = dijkstra_between2Nodes(graph, start_node, target_node, "mean")
-    shortest_cost_path = dijkstra_between2Nodes(graph, start_node, target_node, "cost")
+    shortest_mean_path = PA.dijkstra_between2Nodes(graph, start_node, target_node, "mean")
+    shortest_cost_path = PA.dijkstra_between2Nodes(graph, start_node, target_node, "cost")
     
     cost_min_mean = 0.0
     for i in 1:length(shortest_mean_path)-1
@@ -19,10 +19,10 @@ function get_timeBudget(graph::Graph, start_node::Int, target_node::Int, α::Flo
         cost_min_cost = cost_min_cost + graph.nodes[shortest_cost_path[i]].links[shortest_cost_path[i+1]].cost 
     end
     
-    mean, variance, covariance_term = get_path_distribution(graph, shortest_mean_path, cov_dict)
+    mean, variance, covariance_term = PA.get_path_distribution(graph, shortest_mean_path, cov_dict)
     T_t_α = quantile(Normal(mean, √(variance+covariance_term)), α)
 
-    mean, variance, covariance_term = get_path_distribution(graph, shortest_cost_path, cov_dict)
+    mean, variance, covariance_term = PA.get_path_distribution(graph, shortest_cost_path, cov_dict)
     T_c_α = quantile(Normal(mean, √(variance+covariance_term)), α)
 
     T = T_t_α + (T_c_α - T_t_α) * (1 - γ) + 1e-3
@@ -30,15 +30,15 @@ function get_timeBudget(graph::Graph, start_node::Int, target_node::Int, α::Flo
 end
 
 function write_shortest_paths(graph::Graph, target_node::String, folder_path::String, network_name::String)
-    variance_costs = dijkstra(graph, target_node, "variance")
+    variance_costs = PA.dijkstra(graph, target_node, "variance")
     file_path = joinpath(folder_path, "variance_costs_" * network_name * "_" * target_node * ".csv")
     CSV.write(file_path, DataFrame(variance_costs = variance_costs), writeheader = false)
 
-    mean_costs = dijkstra(graph, target_node, "mean")
+    mean_costs = PA.dijkstra(graph, target_node, "mean")
     file_path = joinpath(folder_path, "mean_costs_" * network_name * "_" * target_node * ".csv")
     CSV.write(file_path, DataFrame(mean_costs = mean_costs), writeheader = false)
 
-    minimum_costs = dijkstra(graph, target_node, "cost")
+    minimum_costs = PA.dijkstra(graph, target_node, "cost")
     file_path = joinpath(folder_path, "minimum_costs_" * network_name * "_" * target_node * ".csv")
     CSV.write(file_path, DataFrame(minimum_costs = minimum_costs), writeheader = false)
 end
@@ -69,31 +69,31 @@ function run_experiments_time(graph::Graph, target_node::String, pulse::SPulseGr
     T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost = get_timeBudget(graph, pulse.G.name_to_index[source_node], pulse.G.name_to_index[target_node], α, γ, covariance_dict)
     pulse.T_max = T
  
-    mean_m, variance_m, covariance_term_m = get_path_distribution(graph, shortest_mean_path, covariance_dict)
+    mean_m, variance_m, covariance_term_m = PA.get_path_distribution(graph, shortest_mean_path, covariance_dict)
     reliability_shortest_mean_path_m = cdf(Normal(mean_m, √(variance_m+covariance_term_m)), T)
 
-    mean_c, variance_c, covariance_term_c = get_path_distribution(graph, shortest_cost_path, covariance_dict)
+    mean_c, variance_c, covariance_term_c = PA.get_path_distribution(graph, shortest_cost_path, covariance_dict)
     reliability_shortest_cost_path_c = cdf(Normal(mean_c, √(variance_c+covariance_term_c)), T)
 
     if reliability_shortest_mean_path_m >= α && initial_bound
         elapsed_time = @elapsed begin
-            run_pulse(pulse, shortest_mean_path, cost_min_mean)
+            PA.run_pulse(pulse, shortest_mean_path, cost_min_mean)
         end
     elseif reliability_shortest_cost_path_c >= α && initial_bound
         elapsed_time = @elapsed begin
-            run_pulse(pulse, shortest_cost_path, cost_min_cost)
+            PA.run_pulse(pulse, shortest_cost_path, cost_min_cost)
         end
     else
         elapsed_time = @elapsed begin
-            run_pulse(pulse)
+            PA.run_pulse(pulse)
         end
     end
     return elapsed_time, pulse.instance_info, (source_node, target_node), pulse.T_max, pulse.optimal_path
 end
 
 function run_aggregated_experiments(graph::Graph, target_node::String, ρ::Float64, α::Float64, γ::Float64, max_depth::Int, folder_path::String, network_name::String, initial_bound::Bool, n::Int)
-    covariance_dict = get_covariance_dict(graph, ρ, max_depth)
-    pulse = create_SPulseGraph(graph, α, covariance_dict, target_node, target_node, 0.0)
+    covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
+    pulse = PA.create_SPulseGraph(graph, α, covariance_dict, target_node, target_node, 0.0)
     
     total_instance_info = Dict(
         "pruned_by_bounds" => 0,
