@@ -78,4 +78,3 @@ avg_pruned_by_bounds = total_instance_info["pruned_by_bounds"] / (length(sampled
 avg_pruned_by_feasibility = total_instance_info["pruned_by_feasibility"] / (length(sampled_keys)*n)
 avg_length_pruned_by_bounds = (total_instance_info["total_length_pruned_by_bounds"]/total_instance_info["pruned_by_bounds"])
 avg_length_pruned_by_feasibility = (total_instance_info["total_length_pruned_by_feasibility"]/total_instance_info["pruned_by_feasibility"])
-

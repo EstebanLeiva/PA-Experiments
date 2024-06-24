@@ -30,6 +30,8 @@ function get_timeBudget(graph::Graph, start_node::Int, target_node::Int, α::Flo
 end
 
 function write_shortest_paths(graph::Graph, target_node::String, folder_path::String, network_name::String)
+    target_node = graph.name_to_index[target_node]
+    
     variance_costs = PA.dijkstra(graph, target_node, "variance")
     file_path = joinpath(folder_path, "variance_costs_" * network_name * "_" * target_node * ".csv")
     CSV.write(file_path, DataFrame(variance_costs = variance_costs), writeheader = false)
