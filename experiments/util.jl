@@ -6,8 +6,8 @@ using DataFrames
 using ProgressBars
 
 function get_timeBudget(graph::Graph, start_node::Int, target_node::Int, α::Float64, γ::Float64, cov_dict::DefaultDict{Tuple{Int, Int, Int, Int}, Float64})
-    shortest_mean_path = PA.dijkstra_between2Nodes(graph, start_node, target_node, "mean")
-    shortest_cost_path = PA.dijkstra_between2Nodes(graph, start_node, target_node, "cost")
+    shortest_mean_path = PA.dijkstra_between_nodes(graph, start_node, target_node, "mean")
+    shortest_cost_path = PA.dijkstra_between_nodes(graph, start_node, target_node, "cost")
     
     cost_min_mean = 0.0
     for i in 1:length(shortest_mean_path)-1
@@ -31,7 +31,7 @@ end
 
 function write_shortest_paths(graph::Graph, target_node::String, folder_path::String, network_name::String)
     target_node = graph.name_to_index[target_node]
-    
+
     variance_costs = PA.dijkstra(graph, target_node, "variance")
     file_path = joinpath(folder_path, "variance_costs_" * network_name * "_" * target_node * ".csv")
     CSV.write(file_path, DataFrame(variance_costs = variance_costs), writeheader = false)
@@ -45,7 +45,7 @@ function write_shortest_paths(graph::Graph, target_node::String, folder_path::St
     CSV.write(file_path, DataFrame(minimum_costs = minimum_costs), writeheader = false)
 end
 
-function preprocess_experiments(sp::SPulseGraph, folder_path::String, network_name::String, target_node::String)
+function preprocess_experiments(sp::SarPulse, folder_path::String, network_name::String, target_node::String)
     file_path = joinpath(folder_path, "minimum_costs_" * network_name * "_" * target_node * ".csv")
     data = CSV.read(file_path, DataFrame, header = false)
     sp.minimum_costs =  data[:, 1] |> collect
@@ -61,14 +61,15 @@ function preprocess_experiments(sp::SPulseGraph, folder_path::String, network_na
     nodes = sort(collect(sp.G.nodes), by=x->sp.minimum_costs[x[1]], rev = true)
     possible_start_nodes = filter(x->sp.minimum_costs[x[1]] != Inf, nodes)
 
-    sp.source_node = rand(possible_start_nodes)[2].name     #set the source node randomly
+    sp.source_node = sp.G.name_to_index[rand(possible_start_nodes)[2].name]  #set the source node randomly
 
     return sp.source_node
 end
 
-function run_experiments_time(graph::Graph, target_node::String, pulse::SPulseGraph, covariance_dict::DefaultDict, α::Float64, γ::Float64, folder_path::String, network_name::String, initial_bound::Bool)
+function run_experiments_time(graph::Graph, target_node::String, pulse::SarPulse, covariance_dict::DefaultDict, α::Float64, γ::Float64, folder_path::String, network_name::String, initial_bound::Bool)
     source_node = preprocess_experiments(pulse, folder_path, network_name, target_node) 
-    T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost = get_timeBudget(graph, pulse.G.name_to_index[source_node], pulse.G.name_to_index[target_node], α, γ, covariance_dict)
+    target_node = graph.name_to_index[target_node]
+    T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost = get_timeBudget(graph, source_node, target_node, α, γ, covariance_dict)
     pulse.T_max = T
  
     mean_m, variance_m, covariance_term_m = PA.get_path_distribution(graph, shortest_mean_path, covariance_dict)
@@ -95,7 +96,7 @@ end
 
 function run_aggregated_experiments(graph::Graph, target_node::String, ρ::Float64, α::Float64, γ::Float64, max_depth::Int, folder_path::String, network_name::String, initial_bound::Bool, n::Int)
     covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
-    pulse = PA.create_SPulseGraph(graph, α, covariance_dict, target_node, target_node, 0.0)
+    pulse = PA.initialize(graph, α, covariance_dict, target_node, target_node, 0.0)
     
     total_instance_info = Dict(
         "pruned_by_bounds" => 0,
@@ -107,7 +108,7 @@ function run_aggregated_experiments(graph::Graph, target_node::String, ρ::Float
     )
     
     for i in 1:n
-        elapsed_time, instance_info, (start_node, target_node), T, optimal_path = run_experiments_time(graph, target_node, pulse, covariance_dict, α, γ, folder_path, network_name, initial_bound)
+        elapsed_time, instance_info, (start_node, _), T, optimal_path = run_experiments_time(graph, target_node, pulse, covariance_dict, α, γ, folder_path, network_name, initial_bound)
         total_instance_info["pruned_by_bounds"] += instance_info["pruned_by_bounds"]
         total_instance_info["pruned_by_feasibility"] += instance_info["pruned_by_feasibility"]
         total_instance_info["total_length_pruned_by_bounds"] += instance_info["total_length_pruned_by_bounds"]
