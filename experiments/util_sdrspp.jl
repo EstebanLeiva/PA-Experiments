@@ -62,7 +62,6 @@ end
 
 function run_aggregated_experiments(graph::Graph, target_node::String, ρ::Float64, α::Float64, max_depth::Int, folder_path::String, network_name::String, initial_bound::Bool, n::Int)
     covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
-    pulse = PA.initialize(graph, α, covariance_dict, target_node, target_node)
     
     total_instance_info = Dict(
         "pruned_by_bounds" => 0,
@@ -72,6 +71,7 @@ function run_aggregated_experiments(graph::Graph, target_node::String, ρ::Float
         )
     
     for i in 1:n
+        pulse = PA.initialize(graph, α, covariance_dict, target_node, target_node)
         elapsed_time, instance_info, (start_node, _), optimal_path = run_experiments_time(graph, target_node, pulse, covariance_dict, α, folder_path, network_name, initial_bound)
         total_instance_info["pruned_by_bounds"] += instance_info["pruned_by_bounds"]
         total_instance_info["total_length_pruned_by_bounds"] += instance_info["total_length_pruned_by_bounds"]
@@ -165,4 +165,112 @@ function erspa_aggregate_experiment_results(sampled_keys::Vector{Int}, graph::Gr
         total_instance_info["total_elapsed_time"] += instance_info["total_elapsed_time"]
     end
     return total_instance_info
+end
+
+### Joint experiments ###
+function erspa_joint_preprocess_experiments(graph::Graph, covariance_dict::DefaultDict, folder_path::String, network_name::String, source_node::Int, target_node::String, α::Float64)
+    folder_path = folder_path[1:end-14]
+    file_path = joinpath(folder_path, "node_coordinates_" * network_name * ".tntp")
+    node_coordinates = Vector{Tuple{Float64, Float64}}()
+    open(file_path, "r") do file
+        readline(file)
+        for line in eachline(file)
+            parts = split(line, '\t')
+            x = parse(Float64, parts[2])
+            y = parse(Float64, parts[3])
+            push!(node_coordinates, (x, y))
+        end
+    end
+
+    erspa = PA.initialize(graph, α, covariance_dict, node_coordinates, target_node, target_node)
+    erspa.source_node = source_node
+    PA.preprocess!(erspa)
+    
+    return erspa
+end
+
+function run_joint_experiments_time(graph::Graph, target_node::String, pulse::SdrsppPulse,  covariance_dict::DefaultDict, α::Float64, folder_path::String, network_name::String, initial_bound::Bool)
+    source_node = preprocess_experiments(pulse, folder_path, network_name, target_node) 
+    target_node2 = graph.name_to_index[target_node]
+    shortest_mean_path, _, _, _ = get_initial_paths(graph, source_node, target_node2, α, covariance_dict)
+ 
+    mean_m, variance_m, covariance_term_m = PA.get_path_distribution(graph, shortest_mean_path, covariance_dict)
+    quantile_m = quantile(Normal(mean_m, √(variance_m+covariance_term_m)), α)
+
+    if initial_bound
+        elapsed_time_pulse = @elapsed begin
+            PA.run_pulse(pulse, shortest_mean_path, quantile_m)
+        end
+    end
+
+    erspa = erspa_joint_preprocess_experiments(graph, covariance_dict, folder_path, network_name, source_node, target_node, α)
+    elapsed_time_erspa = @elapsed begin
+        PA.run_erspa(erspa)
+    end
+
+    return elapsed_time_pulse, pulse.instance_info, pulse.optimal_path, elapsed_time_erspa, erspa.instance_info, erspa.optimal_path
+end
+
+function run_aggregated_joint_experiments(graph::Graph, target_node::String, ρ::Float64, α::Float64, max_depth::Int, folder_path::String, network_name::String, initial_bound::Bool, n::Int)
+    covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
+    pulse = PA.initialize(graph, α, covariance_dict, target_node, target_node)
+    
+    total_instance_info_pulse = Dict(
+        "pruned_by_bounds" => 0,
+        "total_length_pruned_by_bounds" => 0,
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+        )
+    
+    total_instance_info_erspa = Dict(
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+        )
+    
+    for i in 1:n
+        elapsed_time_pulse, instance_info_pulse, optimal_path_pulse, elapsed_time_erspa, instance_info_erspa, optimal_path_erspa = run_joint_experiments_time(graph, target_node, pulse, covariance_dict, α, folder_path, network_name, initial_bound)
+        if optimal_path_erspa != optimal_path_pulse
+            println("Different optimal paths")
+            println(optimal_path_erspa)
+            println(PA.get_path_distribution(graph, optimal_path_erspa, covariance_dict))
+            println(optimal_path_pulse)
+            println(PA.get_path_distribution(graph, optimal_path_pulse, covariance_dict))
+            return "Different optimal paths"
+        end
+        total_instance_info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
+        total_instance_info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
+        total_instance_info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
+        total_instance_info_pulse["total_elapsed_time"] += elapsed_time_pulse
+        
+        total_instance_info_erspa["number_nondominanted_paths"] += instance_info_erspa["number_nondominanted_paths"]
+        total_instance_info_erspa["total_elapsed_time"] += elapsed_time_erspa
+    end
+    return total_instance_info_pulse, total_instance_info_erspa
+end
+
+function aggregate_joint_experiment_results(sampled_keys::Vector{Int}, graph::Graph, ρ::Float64, α::Float64, max_depth::Int, folder_path::String, network_name::String, n::Int)
+    total_instance_info_pulse = Dict(
+        "pruned_by_bounds" => 0,
+        "total_length_pruned_by_bounds" => 0,
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+    )
+    
+    total_instance_info_erspa = Dict(
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+    )
+    
+    for i in ProgressBar(1:length(sampled_keys))
+        key = sampled_keys[i]
+        instance_info_pulse, instance_info_erspa = run_aggregated_joint_experiments(graph, graph.nodes[key].name, ρ, α, max_depth, folder_path, network_name, true, n)
+        total_instance_info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
+        total_instance_info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
+        total_instance_info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
+        total_instance_info_pulse["total_elapsed_time"] += instance_info_pulse["total_elapsed_time"]
+        
+        total_instance_info_erspa["number_nondominanted_paths"] += instance_info_erspa["number_nondominanted_paths"]
+        total_instance_info_erspa["total_elapsed_time"] += instance_info_erspa["total_elapsed_time"]
+    end
+    return total_instance_info_pulse, total_instance_info_erspa
 end
