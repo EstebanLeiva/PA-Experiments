@@ -21,7 +21,7 @@ covariance_dict = PA.get_covariance_dict(graph, ρ, max_depth)
 
 sampled_keys_CS = [39, 195, 204, 440, 493, 682, 706, 767, 798, 812]
 
-n = 1000
+n = 1
 
 total_instance_info = aggregate_experiment_results(sampled_keys_CS, graph, ρ, α, max_depth, folder_path, network_name, n)
 
@@ -34,6 +34,8 @@ total_instance_info = erspa_aggregate_experiment_results(sampled_keys_CS, graph,
 
 CS_avg_nondominated_paths_erspa = total_instance_info["number_nondominanted_paths"] / (length(sampled_keys_CS)*n)
 CS_avg_elapsed_time_erspa = total_instance_info["total_elapsed_time"] / (length(sampled_keys_CS)*n)
+
+pulse_total_instance_info, erspa_total_instance_info = aggregate_joint_experiment_results(sampled_keys_CS, graph, ρ, α, max_depth, folder_path, network_name, n)
 
 ### Chicago Regional ###
 network_name = "CR"
@@ -59,3 +61,6 @@ total_instance_info = erspa_aggregate_experiment_results(sampled_keys_CR, graph,
 
 CR_avg_nondominated_paths_erspa = total_instance_info["number_nondominanted_paths"] / (length(sampled_keys_CR)*n)
 CR_avg_elapsed_time_erspa = total_instance_info["total_elapsed_time"] / (length(sampled_keys_CR)*n)
+
+
+
