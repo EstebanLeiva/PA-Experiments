@@ -6,7 +6,7 @@ include("util_sdrspp.jl")
 include("sydney_loader.jl")
 
 Random.seed!(1234)
-path = raw"C:\Users\esteb\OneDrive - Universidad de los andes\Documentos\ANDES\Noveno Semestre\PA-RSPPs\PA-Experiments"
+path = raw"C:\Users\investigacion\Documents\PA-Experiments\data"
 
 ρ = 1.0
 CV = 0.8
