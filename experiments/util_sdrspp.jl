@@ -114,3 +114,57 @@ function aggregate_experiments(sampled_keys::Vector{Int}, graph::Graph, α::Floa
     end
     return total_instance_info_pulse, total_instance_info_erspa
 end
+
+### PA alone ###
+
+function pa_experiment_sdrspp(graph::Graph, source_node::Int, target_node::Int, pulse::PaSdrspp, covariance_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, α::Float64, initial_bound::Bool)
+    shortest_mean_path, _, _, _ = get_initial_paths(graph, source_node, target_node, α, covariance_dict)
+    mean_m, variance_m, covariance_term_m = PA.get_path_distribution(graph, shortest_mean_path, covariance_dict)
+    quantile_m = quantile(Normal(mean_m, √(variance_m + covariance_term_m)), α)
+    if initial_bound
+        elapsed_time_pulse = @elapsed begin
+            PA.run_pulse(pulse, shortest_mean_path, quantile_m)
+        end
+    end
+    return elapsed_time_pulse, pulse.instance_info
+end
+
+function pa_n_experiments_sdrspp(graph::Graph, target_node::Int, α::Float64, covariance_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, initial_bound::Bool, n::Int)
+    pulse = PA.initialize_PaSdrspp(graph, α, covariance_dict, graph.nodes[target_node].name, graph.nodes[target_node].name)
+    PA.preprocess!(pulse)
+    info_pulse = Dict(
+        "pruned_by_bounds" => 0,
+        "total_length_pruned_by_bounds" => 0,
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+    )
+    source_nodes = sample(collect(keys(graph.nodes)), n, replace=false)
+    for source_node in source_nodes
+        pulse.source_node = source_node
+        elapsed_time_pulse, instance_info_pulse = pa_experiment_sdrspp(graph, source_node, target_node, pulse, covariance_dict, α, initial_bound)
+        info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
+        info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
+        info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
+        info_pulse["total_elapsed_time"] += elapsed_time_pulse
+    end
+    return info_pulse
+end
+
+function pa_aggregate_experiments(sampled_keys::Vector{Int}, graph::Graph, α::Float64, covariance_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, initial_bound::Bool, n::Int)
+    total_instance_info_pulse = Dict(
+        "pruned_by_bounds" => 0,
+        "total_length_pruned_by_bounds" => 0,
+        "number_nondominanted_paths" => 0,
+        "total_elapsed_time" => 0.0
+    )
+
+    for i in ProgressBar(1:length(sampled_keys))
+        key = sampled_keys[i]
+        instance_info_pulse = pa_n_experiments_sdrspp(graph, key, α, covariance_dict, initial_bound, n)
+        total_instance_info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
+        total_instance_info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
+        total_instance_info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
+        total_instance_info_pulse["total_elapsed_time"] += instance_info_pulse["total_elapsed_time"]
+    end
+    return total_instance_info_pulse
+end

@@ -4,15 +4,15 @@ using Random
 using Distributions
 include("util_sdrspp.jl")
 include("sydney_loader.jl")
+include("chen_loader.jl")
 
 Random.seed!(1234)
 path = raw"C:\Users\investigacion\Documents\PA-Experiments"
 
-ρ = 1.0
-CV = 0.8
+
 α = 0.9
 max_depth = 1
-n = 1 #number of start_nodes per target_node
+n = 10 #number of start_nodes per target_node
 
 ## Load networks ##
 
@@ -22,12 +22,10 @@ flow_CS = joinpath(path, raw"data\ChicagoSketch\ChicagoSketch_flow.tntp")
 folder_CS = joinpath(path, raw"data\ChicagoSketch")
 
 divisor_CS = 5280.0
-max_speed_CS = 1.0
-toll_factor_CS = 0.02
-distance_factor_CS = 0.04
+max_speed_CS = 100.0
 
-graph_CS = PA.load_graph_from_ta(net_CS, flow_CS, "CS", CV, toll_factor_CS, distance_factor_CS)
-cov_CS = PA.get_covariance_dict(graph_CS, ρ, max_depth)
+graph_CS = load_graph_from_ta_chen(net_CS, "")
+cov_CS = get_covariance_dict_chen(graph_CS, max_depth)
 
 # Chicago Regional (CR)
 net_CR = joinpath(path, raw"data\ChicagoRegional\ChicagoRegional_net.tntp")
@@ -35,25 +33,20 @@ flow_CR = joinpath(path, raw"data\ChicagoRegional\ChicagoRegional_flow.tntp")
 folder_CR = joinpath(path, raw"data\ChicagoRegional")
 
 divisor_CR = 5280.0
-max_speed_CR = 1.0
-toll_factor_CR = 0.1
-distance_factor_CR = 0.25
+max_speed_CR = 100.0
 
-graph_CR = PA.load_graph_from_ta(net_CR, flow_CR, "CR", CV, toll_factor_CR, distance_factor_CR)
-cov_CR = PA.get_covariance_dict(graph_CR, ρ, max_depth)
+graph_CR = load_graph_from_ta_chen(net_CR, "")
+cov_CR = get_covariance_dict_chen(graph_CR, max_depth)
 
 # Sydney (SY)
 net_SY = joinpath(path, raw"data\Sydney\sydney_net.tntp")
-flow_SY = joinpath(path, raw"data\Sydney\sydney_flow.tntp")
 folder_SY = joinpath(path, raw"data\Sydney")
 
 divisor_SY = 1.0
-max_speed_SY = 105.0
-toll_factor_SY = 0.1 #Use Chicago Regional's toll factor as a reference
-distance_factor_SY = 0.25 #Use Chicago Regional's toll factor as a reference
+max_speed_SY = 100.0
 
-graph_SY = load_graph_from_ta_without_flow_Sydney(net_SY, "SY", CV, toll_factor_SY, distance_factor_SY)
-cov_SY = PA.get_covariance_dict(graph_SY, ρ, max_depth)
+graph_SY = load_graph_Sydney_chen(net_SY, "")
+cov_SY = get_covariance_dict_chen(graph_SY, max_depth)
 
 ## Computational Time Experiments ##
 
@@ -82,7 +75,23 @@ println("ERSPA CS_avg_elapsed_time: ", CS_avg_elapsed_time_erspa)
 
 sampled_keys_CR = sample(collect(keys(graph_CR.nodes)), 10, replace=false)
 println("Sampled keys for Chicago Regional: ", sampled_keys_CR)
-pulse_info_CR = pa_aggregate_experiments(sampled_keys_CR, graph_CR, α, cov_CR, true, n)
+pulse_info_CR, erspa_info_CR = aggregate_experiments(sampled_keys_CR, graph_CR, α, cov_CR, folder_CR, true, n, max_speed_CR, divisor_CR)
+
+CR_avg_nondominated_paths = pulse_info_CR["number_nondominanted_paths"] / (length(sampled_keys_CR) * n)
+CR_avg_elapsed_time = pulse_info_CR["total_elapsed_time"] / (length(sampled_keys_CR) * n)
+CR_avg_pruned_by_bounds = pulse_info_CR["pruned_by_bounds"] / (length(sampled_keys_CR) * n)
+CR_avg_length_pruned_by_bounds = (pulse_info_CR["total_length_pruned_by_bounds"] / pulse_info_CR["pruned_by_bounds"])
+CR_avg_nondominated_paths_erspa = erspa_info_CR["number_nondominanted_paths"] / (length(sampled_keys_CR) * n)
+CR_avg_elapsed_time_erspa = erspa_info_CR["total_elapsed_time"] / (length(sampled_keys_CR) * n)
+
+println("-------------------------------------------------")
+println("Chicago Regional")
+println("PULSE CR_avg_nondominated_paths: ", CR_avg_nondominated_paths)
+println("PULSE CR_avg_elapsed_time: ", CR_avg_elapsed_time) 
+println("PULSE CR_avg_pruned_by_bounds: ", CR_avg_pruned_by_bounds)
+println("PULSE CR_avg_length_pruned_by_bounds: ", CR_avg_length_pruned_by_bounds)
+println("ERSPA CR_avg_nondominated_paths: ", CR_avg_nondominated_paths_erspa)
+println("ERSPA CR_avg_elapsed_time: ", CR_avg_elapsed_time_erspa)
 
 # SY
 sampled_keys_SY = sample(collect(keys(graph_SY.nodes)), 10, replace=false)
