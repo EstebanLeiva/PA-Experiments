@@ -10,7 +10,9 @@ function load_graph_from_ta_chen(tntp_file_dir::String, network_name::String)
     for i in 1:length(ta_data.start_node)
         start = string(ta_data.start_node[i])
         dst = string(ta_data.end_node[i])
-        mean = rand(Uniform(10, 100))
+        length = ta_data.link_length[i]
+        speed = rand(Uniform(10, 100))
+        mean = length / speed
         CV = rand(Uniform(0.1, 1))
         variance = mean * CV
         cost = 0.0
@@ -26,7 +28,7 @@ function get_covariance_dict_chen(graph::Graph, max_depth::Int)
         visited_pairlinks = PA.modified_dfs(graph, link, max_depth, 1, Dict{Tuple{Int, Int}, Int}(), -1)
         for pairlink in keys(visited_pairlinks)
             if pairlink != link 
-                covariance_dict[(link[1], link[2], pairlink[1], pairlink[2])] = rand(Uniform(0.0, 1))
+                covariance_dict[(link[1], link[2], pairlink[1], pairlink[2])] = rand(Uniform(0.1, 1)) * √(links[(pairlink)][3]) * √(links[link][3]) 
             end
             if pairlink == link
                 covariance_dict[(link[1],link[2],pairlink[1],pairlink[2])] = 1.0
@@ -44,9 +46,6 @@ function load_graph_Sydney_chen(tntp_file_dir::String, network_name::String)
         PA.find_or_add!(new_graph, string(ta_data.start_node[i]))
     end
 
-    cost_flow = 100 # Like there is no flow data, we assume to be 100 for every link
-    avg_fft_coefficient = calculate_avg_fft_coefficient(ta_data)
-
     for i in 1:length(ta_data.start_node)
         start = string(ta_data.start_node[i])
         dst = string(ta_data.end_node[i])
@@ -57,4 +56,25 @@ function load_graph_Sydney_chen(tntp_file_dir::String, network_name::String)
         add_link!(new_graph, start, dst, cost, mean, variance)
     end
     return new_graph
+end
+
+function load_graph_Philadelphia_chen(tntp_file_dir::String, network_name::String)
+    ta_data = PA.load_ta(tntp_file_dir, network_name)
+    new_graph = Graph(Dict{Int,Node}(), Dict{String,Int}())
+
+    for i in 1:length(ta_data.start_node)
+        PA.find_or_add!(new_graph, string(ta_data.start_node[i]))
+    end 
+    
+    for i in 1:length(ta_data.start_node)
+        start = string(ta_data.start_node[i])
+        dst = string(ta_data.end_node[i])
+        mean = rand(Uniform(10, 100))
+        CV = rand(Uniform(0.1, 1))
+        variance = mean * CV
+        cost = 0.0
+        add_link!(new_graph, start, dst, cost, mean, variance)
+    end
+    return new_graph
+    
 end

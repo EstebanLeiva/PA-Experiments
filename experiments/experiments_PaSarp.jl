@@ -7,14 +7,14 @@ include("util.jl")
 include("sydney_loader.jl")
 
 Random.seed!(1234)
-path = raw"C:\Users\esteb\OneDrive - Universidad de los andes\Documentos\ANDES\Noveno Semestre\PA-RSPPs\PA-Experiments"
+path = raw"C:\Users\investigacion\Documents\PA-Experiments"
 
 ρ = 1.0
 CV = 0.8
 α = 0.9
 γ = 0.4
 max_depth = 2
-n = 500 #number of start_nodes per target_node
+n = 100 #number of start_nodes per target_node
 
 ## Load networks ##
 
@@ -25,6 +25,7 @@ flow_CS = joinpath(path, raw"data\ChicagoSketch\ChicagoSketch_flow.tntp")
 toll_factor_CS = 0.02
 distance_factor_CS = 0.04
 
+println(net_CS)
 graph_CS = PA.load_graph_from_ta(net_CS, flow_CS, "CS", CV, toll_factor_CS, distance_factor_CS)
 cov_CS = PA.get_covariance_dict(graph_CS, ρ, max_depth)
 

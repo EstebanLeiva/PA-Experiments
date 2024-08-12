@@ -12,7 +12,7 @@ path = raw"C:\Users\investigacion\Documents\PA-Experiments"
 
 α = 0.9
 max_depth = 1
-n = 10 #number of start_nodes per target_node
+n = 100 #number of start_nodes per target_node
 
 ## Load networks ##
 
@@ -27,16 +27,16 @@ max_speed_CS = 100.0
 graph_CS = load_graph_from_ta_chen(net_CS, "")
 cov_CS = get_covariance_dict_chen(graph_CS, max_depth)
 
-# Chicago Regional (CR)
-net_CR = joinpath(path, raw"data\ChicagoRegional\ChicagoRegional_net.tntp")
-flow_CR = joinpath(path, raw"data\ChicagoRegional\ChicagoRegional_flow.tntp")
-folder_CR = joinpath(path, raw"data\ChicagoRegional")
+# Philadelphia (PH)
+net_PH = joinpath(path, raw"data\Philadelphia\Philadelphia_net.tntp")
+folder_PH = joinpath(path, raw"data\Philadelphia")
 
-divisor_CR = 5280.0
-max_speed_CR = 100.0
+divisor_PH = 100.0
+max_speed_PH = 100.0
 
-graph_CR = load_graph_from_ta_chen(net_CR, "")
-cov_CR = get_covariance_dict_chen(graph_CR, max_depth)
+graph_PH = load_graph_Philadelphia_chen(net_PH, "")
+cov_PH = get_covariance_dict_chen(graph_PH, max_depth)
+
 
 # Sydney (SY)
 net_SY = joinpath(path, raw"data\Sydney\sydney_net.tntp")
@@ -51,7 +51,7 @@ cov_SY = get_covariance_dict_chen(graph_SY, max_depth)
 ## Computational Time Experiments ##
 
 # CS
-sampled_keys_CS = sample(collect(keys(graph_CS.nodes)), 10, replace=false)
+sampled_keys_CS = rand(collect(keys(graph_CS.nodes)), 10)
 println("Sampled keys for Chicago Sketch: ", sampled_keys_CS)
 pulse_info_CS, erspa_info_CS = aggregate_experiments(sampled_keys_CS, graph_CS, α, cov_CS, folder_CS, true, n, max_speed_CS, divisor_CS)
 
@@ -71,27 +71,26 @@ println("PULSE CS_avg_length_pruned_by_bounds: ", CS_avg_length_pruned_by_bounds
 println("ERSPA CS_avg_nondominated_paths: ", CS_avg_nondominated_paths_erspa)
 println("ERSPA CS_avg_elapsed_time: ", CS_avg_elapsed_time_erspa)
 
-# CR
+# PH
+sampled_keys_PH = sample(collect(keys(graph_PH.nodes)), 10, replace=false)
+println("Sampled keys for Philadelphia: ", sampled_keys_PH)
+pulse_info_PH, erspa_info_PH = aggregate_experiments(sampled_keys_PH, graph_PH, α, cov_PH, folder_PH, true, n, max_speed_PH, divisor_PH)
 
-sampled_keys_CR = sample(collect(keys(graph_CR.nodes)), 10, replace=false)
-println("Sampled keys for Chicago Regional: ", sampled_keys_CR)
-pulse_info_CR, erspa_info_CR = aggregate_experiments(sampled_keys_CR, graph_CR, α, cov_CR, folder_CR, true, n, max_speed_CR, divisor_CR)
-
-CR_avg_nondominated_paths = pulse_info_CR["number_nondominanted_paths"] / (length(sampled_keys_CR) * n)
-CR_avg_elapsed_time = pulse_info_CR["total_elapsed_time"] / (length(sampled_keys_CR) * n)
-CR_avg_pruned_by_bounds = pulse_info_CR["pruned_by_bounds"] / (length(sampled_keys_CR) * n)
-CR_avg_length_pruned_by_bounds = (pulse_info_CR["total_length_pruned_by_bounds"] / pulse_info_CR["pruned_by_bounds"])
-CR_avg_nondominated_paths_erspa = erspa_info_CR["number_nondominanted_paths"] / (length(sampled_keys_CR) * n)
-CR_avg_elapsed_time_erspa = erspa_info_CR["total_elapsed_time"] / (length(sampled_keys_CR) * n)
+PH_avg_nondominated_paths = pulse_info_PH["number_nondominanted_paths"] / (length(sampled_keys_PH) * n)
+PH_avg_elapsed_time = pulse_info_PH["total_elapsed_time"] / (length(sampled_keys_PH) * n)
+PH_avg_pruned_by_bounds = pulse_info_PH["pruned_by_bounds"] / (length(sampled_keys_PH) * n)
+PH_avg_length_pruned_by_bounds = (pulse_info_PH["total_length_pruned_by_bounds"] / pulse_info_PH["pruned_by_bounds"])
+PH_avg_nondominated_paths_erspa = erspa_info_PH["number_nondominanted_paths"] / (length(sampled_keys_PH) * n)
+PH_avg_elapsed_time_erspa = erspa_info_PH["total_elapsed_time"] / (length(sampled_keys_PH) * n)
 
 println("-------------------------------------------------")
-println("Chicago Regional")
-println("PULSE CR_avg_nondominated_paths: ", CR_avg_nondominated_paths)
-println("PULSE CR_avg_elapsed_time: ", CR_avg_elapsed_time) 
-println("PULSE CR_avg_pruned_by_bounds: ", CR_avg_pruned_by_bounds)
-println("PULSE CR_avg_length_pruned_by_bounds: ", CR_avg_length_pruned_by_bounds)
-println("ERSPA CR_avg_nondominated_paths: ", CR_avg_nondominated_paths_erspa)
-println("ERSPA CR_avg_elapsed_time: ", CR_avg_elapsed_time_erspa)
+println("Philadelphia")
+println("PULSE PH_avg_nondominated_paths: ", PH_avg_nondominated_paths)
+println("PULSE PH_avg_elapsed_time: ", PH_avg_elapsed_time)
+println("PULSE PH_avg_pruned_by_bounds: ", PH_avg_pruned_by_bounds)
+println("PULSE PH_avg_length_pruned_by_bounds: ", PH_avg_length_pruned_by_bounds)
+println("ERSPA PH_avg_nondominated_paths: ", PH_avg_nondominated_paths_erspa)
+println("ERSPA PH_avg_elapsed_time: ", PH_avg_elapsed_time_erspa)
 
 # SY
 sampled_keys_SY = sample(collect(keys(graph_SY.nodes)), 10, replace=false)

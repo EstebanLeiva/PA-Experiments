@@ -23,7 +23,11 @@ function erspa_preprocess_experiments(graph::Graph, source_node::Int, target_nod
     open(file_path, "r") do file
         readline(file)
         for line in eachline(file)
-            parts = split(line, '\t')
+            if occursin("Philadelphia", folder_path)
+                parts = split(line, ' ')
+            else
+                parts = split(line, '\t')
+            end
             x = parse(Float64, parts[2])
             y = parse(Float64, parts[3])
             push!(node_coordinates, (x, y))
@@ -53,7 +57,7 @@ function experiment_sdrspp(graph::Graph, source_node::Int, target_node::Int, pul
 end
 
 function n_experiments_sdrspp(graph::Graph, target_node::Int, α::Float64, covariance_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, folder_path::String, initial_bound::Bool, n::Int, max_speed::Float64, distance_divisor::Float64)
-    pulse = PA.initialize_PaSdrspp(graph, α, covariance_dict, graph.nodes[target_node].name, graph.nodes[target_node].name)
+    pulse = PA.initialize_PaSdrspp(graph, α, covariance_dict, graph.nodes[target_node].name, graph.nodes[target_node].name, 0) ##### MODIFICATON
     PA.preprocess!(pulse)
     info_pulse = Dict(
         "pruned_by_bounds" => 0,
@@ -67,14 +71,24 @@ function n_experiments_sdrspp(graph::Graph, target_node::Int, α::Float64, covar
     )
     source_nodes = sample(collect(keys(graph.nodes)), n, replace=false)
     for source_node in source_nodes
+        shortest_mean_path, _, _, _ = get_initial_paths(graph, source_node, target_node, α, covariance_dict) ##### MODIFICATON
+        pulse.max_pulse_depth = trunc(Int, length(shortest_mean_path)) ##### MODIFICATON
         pulse.source_node = source_node
         elapsed_time_pulse, instance_info_pulse, optimal_path_pulse, elapsed_time_erspa, instance_info_erspa, optimal_path_erspa = experiment_sdrspp(graph, source_node, target_node, pulse, covariance_dict, α, folder_path, initial_bound, max_speed, distance_divisor)
         if optimal_path_erspa != optimal_path_pulse
+            println("-------------------------------------------------------------------")
             println("Different optimal paths")
+            println("ERSPA")
             println(optimal_path_erspa)
-            println(PA.get_path_distribution(graph, optimal_path_erspa, covariance_dict))
+            mean, variance, covariance = PA.get_path_distribution(graph, optimal_path_erspa, covariance_dict)
+            println((mean, variance, covariance))
+            println(quantile(Normal(mean, √(variance + covariance)), α))
+            println("PULSE")
             println(optimal_path_pulse)
-            println(PA.get_path_distribution(graph, optimal_path_pulse, covariance_dict))
+            mean, variance, covariance = PA.get_path_distribution(graph, optimal_path_pulse, covariance_dict)
+            println((mean, variance, covariance))
+            println(quantile(Normal(mean, √(variance + covariance)), α))
+            println("-------------------------------------------------------------------")
             error("Different optimal paths")
         end
         info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
