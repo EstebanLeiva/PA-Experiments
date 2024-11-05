@@ -54,46 +54,50 @@ function n_experiments_pasarp(graph::Graph, target_node::Int, α::Float64, γ::F
     pulse = PA.initialize_PaSarp(graph, α, cov_dict, graph.nodes[target_node].name, graph.nodes[target_node].name, 0.0)
     PA.preprocess!(pulse)
     total_instance_info = Dict(
-        "pruned_by_bounds" => 0,
-        "pruned_by_feasibility" => 0,
-        "total_length_pruned_by_bounds" => 0,
-        "total_length_pruned_by_feasibility" => 0,
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "pruned_by_bounds" => Vector{Int}(),
+        "pruned_by_feasibility" => Vector{Int}(),
+        "total_length_pruned_by_bounds" => Vector{Int}(),
+        "total_length_pruned_by_feasibility" => Vector{Int}(),
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
 
     source_nodes = sample(collect(keys(graph.nodes)), n, replace=false)
     for source_node in source_nodes
         pulse.source_node = source_node
         elapsed_time, instance_info = experiment_pasarp(graph, source_node, target_node, pulse, cov_dict, α, γ, initial_bound)
-        total_instance_info["pruned_by_bounds"] += instance_info["pruned_by_bounds"]
-        total_instance_info["pruned_by_feasibility"] += instance_info["pruned_by_feasibility"]
-        total_instance_info["total_length_pruned_by_bounds"] += instance_info["total_length_pruned_by_bounds"]
-        total_instance_info["total_length_pruned_by_feasibility"] += instance_info["total_length_pruned_by_feasibility"]
-        total_instance_info["number_nondominanted_paths"] += instance_info["number_nondominanted_paths"]
-        total_instance_info["total_elapsed_time"] += elapsed_time
+
+        append!(total_instance_info["pruned_by_bounds"], instance_info["pruned_by_bounds"])
+        append!(total_instance_info["pruned_by_feasibility"], instance_info["pruned_by_feasibility"])
+        append!(total_instance_info["total_length_pruned_by_bounds"], instance_info["total_length_pruned_by_bounds"])
+        append!(total_instance_info["total_length_pruned_by_feasibility"], instance_info["total_length_pruned_by_feasibility"])
+        append!(total_instance_info["number_nondominanted_paths"], instance_info["number_nondominanted_paths"])
+        append!(total_instance_info["total_elapsed_time"], elapsed_time)
+
     end
     return total_instance_info
 end
 
 function aggregate_experiments(sampled_keys::Vector{Int}, graph::Graph, α::Float64, γ::Float64, cov_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, n::Int)
     total_instance_info = Dict(
-        "pruned_by_bounds" => 0,
-        "pruned_by_feasibility" => 0,
-        "total_length_pruned_by_bounds" => 0,
-        "total_length_pruned_by_feasibility" => 0,
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "pruned_by_bounds" => Vector{Int}(),
+        "pruned_by_feasibility" => Vector{Int}(),
+        "total_length_pruned_by_bounds" => Vector{Int}(),
+        "total_length_pruned_by_feasibility" => Vector{Int}(),
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
     for i in ProgressBar(1:length(sampled_keys))
         key = sampled_keys[i]
         instance_info = n_experiments_pasarp(graph, key, α, γ, cov_dict, true, n)
-        total_instance_info["pruned_by_bounds"] += instance_info["pruned_by_bounds"]
-        total_instance_info["pruned_by_feasibility"] += instance_info["pruned_by_feasibility"]
-        total_instance_info["total_length_pruned_by_bounds"] += instance_info["total_length_pruned_by_bounds"]
-        total_instance_info["total_length_pruned_by_feasibility"] += instance_info["total_length_pruned_by_feasibility"]
-        total_instance_info["number_nondominanted_paths"] += instance_info["number_nondominanted_paths"]
-        total_instance_info["total_elapsed_time"] += instance_info["total_elapsed_time"]
+
+        total_instance_info["pruned_by_bounds"] = [total_instance_info["pruned_by_bounds"] ; instance_info["pruned_by_bounds"]]
+        total_instance_info["pruned_by_feasibility"] = [total_instance_info["pruned_by_feasibility"] ; instance_info["pruned_by_feasibility"]]
+        total_instance_info["total_length_pruned_by_bounds"] = [total_instance_info["total_length_pruned_by_bounds"] ; instance_info["total_length_pruned_by_bounds"]]
+        total_instance_info["total_length_pruned_by_feasibility"] = [total_instance_info["total_length_pruned_by_feasibility"] ; instance_info["total_length_pruned_by_feasibility"]]
+        total_instance_info["number_nondominanted_paths"] = [total_instance_info["number_nondominanted_paths"] ; instance_info["number_nondominanted_paths"]]
+        total_instance_info["total_elapsed_time"] = [total_instance_info["total_elapsed_time"] ; instance_info["total_elapsed_time"]]
+
     end
     return total_instance_info
 end

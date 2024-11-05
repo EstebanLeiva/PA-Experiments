@@ -7,7 +7,7 @@ include("util.jl")
 include("sydney_loader.jl")
 
 Random.seed!(1234)
-path = raw"C:\Users\investigacion\Documents\PA-Experiments"
+path = raw"path\to\PA-Experiments"
 
 ρ = 1.0
 CV = 0.8

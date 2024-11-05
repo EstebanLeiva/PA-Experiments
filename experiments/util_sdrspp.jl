@@ -60,14 +60,14 @@ function n_experiments_sdrspp(graph::Graph, target_node::Int, α::Float64, covar
     pulse = PA.initialize_PaSdrspp(graph, α, covariance_dict, graph.nodes[target_node].name, graph.nodes[target_node].name, 0) ##### MODIFICATON
     PA.preprocess!(pulse)
     info_pulse = Dict(
-        "pruned_by_bounds" => 0,
-        "total_length_pruned_by_bounds" => 0,
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "pruned_by_bounds" => Vector{Int}(),
+        "total_length_pruned_by_bounds" => Vector{Int}(),
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
     info_erspa = Dict(
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
     source_nodes = sample(collect(keys(graph.nodes)), n, replace=false)
     for source_node in source_nodes
@@ -91,40 +91,43 @@ function n_experiments_sdrspp(graph::Graph, target_node::Int, α::Float64, covar
             println("-------------------------------------------------------------------")
             error("Different optimal paths")
         end
-        info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
-        info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
-        info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
-        info_pulse["total_elapsed_time"] += elapsed_time_pulse
+        append!(info_pulse["pruned_by_bounds"], instance_info_pulse["pruned_by_bounds"])
+        append!(info_pulse["total_length_pruned_by_bounds"], instance_info_pulse["total_length_pruned_by_bounds"])
+        append!(info_pulse["number_nondominanted_paths"], instance_info_pulse["number_nondominanted_paths"])
+        append!(info_pulse["total_elapsed_time"], elapsed_time_pulse)
 
-        info_erspa["number_nondominanted_paths"] += instance_info_erspa["number_nondominanted_paths"]
-        info_erspa["total_elapsed_time"] += elapsed_time_erspa
+        append!(info_erspa["number_nondominanted_paths"], instance_info_erspa["number_nondominanted_paths"])
+        append!(info_erspa["total_elapsed_time"], elapsed_time_erspa)
+
     end
     return info_pulse, info_erspa
 end
 
 function aggregate_experiments(sampled_keys::Vector{Int}, graph::Graph, α::Float64, covariance_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64}, folder_path::String, initial_bound::Bool, n::Int, max_speed::Float64, distance_divisor::Float64)
     total_instance_info_pulse = Dict(
-        "pruned_by_bounds" => 0,
-        "total_length_pruned_by_bounds" => 0,
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "pruned_by_bounds" => Vector{Int}(),
+        "total_length_pruned_by_bounds" => Vector{Int}(),
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
 
     total_instance_info_erspa = Dict(
-        "number_nondominanted_paths" => 0,
-        "total_elapsed_time" => 0.0
+        "number_nondominanted_paths" => Vector{Int}(),
+        "total_elapsed_time" => Vector{Float64}()
     )
 
     for i in ProgressBar(1:length(sampled_keys))
         key = sampled_keys[i]
         instance_info_pulse, instance_info_erspa = n_experiments_sdrspp(graph, key, α, covariance_dict, folder_path, initial_bound, n, max_speed, distance_divisor)
-        total_instance_info_pulse["pruned_by_bounds"] += instance_info_pulse["pruned_by_bounds"]
-        total_instance_info_pulse["total_length_pruned_by_bounds"] += instance_info_pulse["total_length_pruned_by_bounds"]
-        total_instance_info_pulse["number_nondominanted_paths"] += instance_info_pulse["number_nondominanted_paths"]
-        total_instance_info_pulse["total_elapsed_time"] += instance_info_pulse["total_elapsed_time"]
+        
+        total_instance_info_pulse["pruned_by_bounds"] = [total_instance_info_pulse["pruned_by_bounds"]; instance_info_pulse["pruned_by_bounds"]]
+        total_instance_info_pulse["total_length_pruned_by_bounds"] = [total_instance_info_pulse["total_length_pruned_by_bounds"]; instance_info_pulse["total_length_pruned_by_bounds"]]
+        total_instance_info_pulse["number_nondominanted_paths"] = [total_instance_info_pulse["number_nondominanted_paths"]; instance_info_pulse["number_nondominanted_paths"]]
+        total_instance_info_pulse["total_elapsed_time"] = [total_instance_info_pulse["total_elapsed_time"]; instance_info_pulse["total_elapsed_time"]]
 
-        total_instance_info_erspa["number_nondominanted_paths"] += instance_info_erspa["number_nondominanted_paths"]
-        total_instance_info_erspa["total_elapsed_time"] += instance_info_erspa["total_elapsed_time"]
+        total_instance_info_erspa["number_nondominanted_paths"] = [total_instance_info_erspa["number_nondominanted_paths"]; instance_info_erspa["number_nondominanted_paths"]]
+        total_instance_info_erspa["total_elapsed_time"] = [total_instance_info_erspa["total_elapsed_time"]; instance_info_erspa["total_elapsed_time"]]
+    
     end
     return total_instance_info_pulse, total_instance_info_erspa
 end

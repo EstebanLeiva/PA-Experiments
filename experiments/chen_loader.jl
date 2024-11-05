@@ -4,7 +4,7 @@ function load_graph_from_ta_chen(tntp_file_dir::String, network_name::String)
     new_graph = Graph(Dict{Int,Node}(), Dict{String,Int}())
 
     for i in 1:length(ta_data.start_node)
-        find_or_add!(new_graph, string(ta_data.start_node[i]))
+        PA.find_or_add!(new_graph, string(ta_data.start_node[i]))
     end
 
     for i in 1:length(ta_data.start_node)
