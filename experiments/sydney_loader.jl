@@ -211,10 +211,10 @@ end
 
 function load_graph_from_ta_without_flow(tntp_file_dir::String, network_name::String, CV::Float64, toll_factor::Float64, length_factor::Float64)
     ta_data = load_ta_network(tntp_file_dir, network_name)
-    new_graph = Graph(Dict{Int,Node}(), Dict{String,Int}())
+    new_graph = PA.Graph(Dict{Int, PA.Node}(), Dict{String, Int}(), Dict{String, DefaultDict{Tuple{Int, Int, Int, Int}, Float64}}())
 
     for i in 1:length(ta_data.start_node)
-        PA.find_or_add!(new_graph, string(ta_data.start_node[i]))
+        PA.find_or_add_node!(new_graph, string(ta_data.start_node[i]))
     end
 
     cost_flow = 100 # Like there is no flow data, we assume to be 100 for every link
@@ -231,17 +231,20 @@ function load_graph_from_ta_without_flow(tntp_file_dir::String, network_name::St
         mean = fft * (1 + ta_data.B[i] * (cost_flow / ta_data.capacity[i])^ta_data.power[i])
         variance = CV * abs(mean - fft)
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
-        add_link!(new_graph, start, dst, cost, mean, variance)
+        
+        deterministic_info = Dict{String, Float64}("cost" => cost)
+        random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
+        PA.add_link!(new_graph, start, dst, deterministic_info, random_info)
     end
     return new_graph
 end
 
 function load_graph_from_ta_without_flow_Sydney(tntp_file_dir::String, network_name::String, CV::Float64, toll_factor::Float64, length_factor::Float64)
     ta_data = load_ta_network_Sydney(tntp_file_dir, network_name)
-    new_graph = Graph(Dict{Int,Node}(), Dict{String,Int}())
+    new_graph = PA.Graph(Dict{Int, PA.Node}(), Dict{String, Int}(), Dict{String, DefaultDict{Tuple{Int, Int, Int, Int}, Float64}}())
 
     for i in 1:length(ta_data.start_node)
-        PA.find_or_add!(new_graph, string(ta_data.start_node[i]))
+        PA.find_or_add_node!(new_graph, string(ta_data.start_node[i]))
     end
 
     cost_flow = 100 # Like there is no flow data, we assume to be 100 for every link
@@ -258,7 +261,10 @@ function load_graph_from_ta_without_flow_Sydney(tntp_file_dir::String, network_n
         mean = fft * (1 + ta_data.B[i] * (cost_flow / ta_data.capacity[i])^ta_data.power[i])
         variance = mean * CV
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
-        add_link!(new_graph, start, dst, cost, mean, variance)
+        
+        deterministic_info = Dict{String, Float64}("cost" => cost)
+        random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
+        PA.add_link!(new_graph, start, dst, deterministic_info, random_info)
     end
     return new_graph
 end
