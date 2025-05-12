@@ -65,6 +65,7 @@ function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_funct
     covariance_dict = pulse.problem.graph.covariance["time"]
     T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost = get_timeBudget(graph, source_node, target_node, α, γ, covariance_dict)
     pulse.problem.constants["T_max"] = T
+    pulse.parameters.max_pulse_depth = length(shortest_mean_path)
 
     mean_m, variance_m, covariance_term_m = get_path_distribution(graph, shortest_mean_path, covariance_dict)
     reliability_shortest_mean_path_m = cdf(Normal(mean_m, √(variance_m + covariance_term_m)), T)
@@ -74,15 +75,15 @@ function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_funct
 
     if reliability_shortest_mean_path_m >= α && initial_bound
         elapsed_time = @elapsed begin
-            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, shortest_mean_path, cost_min_mean)
+            run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=cost_min_mean)
         end
     elseif reliability_shortest_cost_path_c >= α && initial_bound
         elapsed_time = @elapsed begin
-            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, shortest_cost_path, cost_min_cost)
+            run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_cost_path, init_objective=cost_min_cost)
         end
     else
         elapsed_time = @elapsed begin
-            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score)
+            run_pulse!(pulse, info_update, pruning_functions, pulse_score)
         end
     end
     return elapsed_time, preprocessing_time, pulse.instance_info
@@ -122,18 +123,16 @@ function n_experiments_PaSarp(graph::PA.Graph, target_node::Int, parameters::PA.
 
         try
             elapsed_time, preprocessing_time, instance_info = experiment_PaSarp(pulse, info_update, pruning_functions, pulse_score, initial_bound)
+            append!(total_instance_info["pruned_by_bounds"], instance_info["pruned_by_bounds"])
+            append!(total_instance_info["pruned_by_feasibility"], instance_info["pruned_by_feasibility"])
+            append!(total_instance_info["total_length_pruned_by_bounds"], instance_info["total_length_pruned_by_bounds"])
+            append!(total_instance_info["total_length_pruned_by_feasibility"], instance_info["total_length_pruned_by_feasibility"])
+            append!(total_instance_info["number_nondominanted_paths"], instance_info["number_nondominanted_paths"])
+            append!(total_instance_info["total_elapsed_time"], elapsed_time)
+            append!(total_instance_info["total_preprocessing_time"], preprocessing_time)
         catch e
             @warn "Non-reachable node" exception=(e, catch_backtrace())
         end
-
-        append!(total_instance_info["pruned_by_bounds"], instance_info["pruned_by_bounds"])
-        append!(total_instance_info["pruned_by_feasibility"], instance_info["pruned_by_feasibility"])
-        append!(total_instance_info["total_length_pruned_by_bounds"], instance_info["total_length_pruned_by_bounds"])
-        append!(total_instance_info["total_length_pruned_by_feasibility"], instance_info["total_length_pruned_by_feasibility"])
-        append!(total_instance_info["number_nondominanted_paths"], instance_info["number_nondominanted_paths"])
-        append!(total_instance_info["total_elapsed_time"], elapsed_time)
-        append!(total_instance_info["total_preprocessing_time"], preprocessing_time)
-
     end
     return total_instance_info
 end

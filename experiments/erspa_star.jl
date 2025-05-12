@@ -23,7 +23,7 @@ function initialize_ErspaStar(G::PA.Graph, α::Float64, covariance_dict::Default
     return ErspaStar(G, α, max_speed, distance_divisor, covariance_dict, node_coordinates, Vector{Float64}(undef, length(G.nodes)), Vector{Int}(), source_node, target_node, instance_info, Dict{Tuple{Int,Int},PriorityQueue{Vector{Int},Float64}}(), PriorityQueue{Vector{Int},Float64}())
 end
 
-function preprocess!(erspa::ErspaStar)
+function preprocess_erspa!(erspa::ErspaStar)
     for (node, _) in erspa.G.nodes
         erspa.node_distances[node] = sqrt((erspa.node_coordinates[node][1] - erspa.node_coordinates[erspa.target_node][1])^2
                                           +

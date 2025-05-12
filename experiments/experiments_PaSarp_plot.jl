@@ -19,7 +19,7 @@ CV = 0.8
 α = 0.9
 γ = 0.4
 max_depth = 2
-n = 1  #number of start_nodes per target_node
+n = 10  #100 for sarp, 10 for vanilla
 
 ### Load networks ###
 
@@ -172,7 +172,7 @@ end
 # Parameters
 pruning_functions_vanilla = Vector{Function}(undef, 1)
 pruning_functions_vanilla[1] = prune_bounds_vanilla
-pruning_functions_pasarp = [prune_bounds, prune_feasibility]
+pruning_functions = [prune_feasibility, prune_bounds]
 constants = Dict("T_max" => 10.0, "alpha" => α, "gamma" => γ)
 deterministic_weights = ["cost"]
 random_weights = Dict("time" => ["mean", "variance", "covariance"])
@@ -183,7 +183,7 @@ params = Parameters(100,
                     exploration_order, 
                     deterministic_weights, 
                     random_weights, 
-                    prep_deterministic_weights, 
+                    prep_deterministic_weights,
                     prep_random_weights)
 
 ### Computational Time Experiments ###
@@ -241,27 +241,37 @@ println("---------------------------------")
 ### Write CSV ###
 
 df_time = DataFrame(CS_t = CS_elapsed_time, 
-                    CS_t_prep = CS_preprocessing_time, 
-                    CR_t = CR_elapsed_time,
-                    CR_t_prep = CR_preprocessing_time,
-                    SY_b = SY_elapsed_time,
+                    CS_t_prep = CS_preprocessing_time)
+CSV.write("CS_time_vanilla.csv", df_time)
+
+df_time = DataFrame(CR_t = CR_elapsed_time, 
+                    CR_t_prep = CR_preprocessing_time)
+CSV.write("CR_time_vanilla.csv", df_time)
+
+df_time = DataFrame(SY_t = SY_elapsed_time, 
                     SY_t_prep = SY_preprocessing_time)
-CSV.write("time_vanilla.csv", df_time)
+CSV.write("SY_time_vanilla.csv", df_time)
 
 df_prune = DataFrame(CS_b = CS_pruned_by_bounds, 
-                        CS_i = CS_pruned_by_feasibility,
-                        CR_b = CR_pruned_by_bounds, 
-                        CR_i = CR_pruned_by_feasibility,
-                        SY_b = SY_pruned_by_bounds,
-                        SY_i = SY_pruned_by_feasibility)
+                        CS_i = CS_pruned_by_feasibility)
+CSV.write("CS_prune_vanilla.csv", df_prune)
 
-CSV.write("prune_vanilla.csv", df_prune)
+df_prune = DataFrame(CR_b = CR_pruned_by_bounds, 
+                        CR_i = CR_pruned_by_feasibility)
+CSV.write("CR_prune_vanilla.csv", df_prune)
+
+df_prune = DataFrame(SY_b = SY_pruned_by_bounds, 
+                        SY_i = SY_pruned_by_feasibility)
+CSV.write("SY_prune_vanilla.csv", df_prune)
 
 df_length_prune = DataFrame(CS_b = CS_length_pruned_by_bounds, 
-                        CS_i = CS_length_pruned_by_feasibility,
-                        CR_b = CR_length_pruned_by_bounds, 
-                        CR_i = CR_length_pruned_by_feasibility,
-                        SY_b = SY_length_pruned_by_bounds,
-                        SY_i = SY_length_pruned_by_feasibility)
+                        CS_i = CS_length_pruned_by_feasibility)
+CSV.write("CS_length_vanilla.csv", df_length_prune)
 
-CSV.write("length_prune_vanilla.csv", df_length_prune)
+df_length_prune = DataFrame(CR_b = CR_length_pruned_by_bounds, 
+                        CR_i = CR_length_pruned_by_feasibility)
+CSV.write("CR_length_vanilla.csv", df_length_prune)
+
+df_length_prune = DataFrame(SY_b = SY_length_pruned_by_bounds, 
+                        SY_i = SY_length_pruned_by_feasibility)
+CSV.write("SY_length_vanilla.csv", df_length_prune)

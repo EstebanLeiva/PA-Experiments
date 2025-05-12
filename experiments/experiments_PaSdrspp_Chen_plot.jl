@@ -83,6 +83,7 @@ function prune_bounds(pulse_alg::PA.Pulse,
         new_path = copy(current_path)
         push!(new_path, current_node)
         pulse_alg.current_optimal_path = new_path
+        pulse_alg.instance_info["number_nondominanted_paths"] += 1
     end
     return false
 end
@@ -282,16 +283,22 @@ println("-------------------------------------------------")
 
 ### DFs ###
 df_time = DataFrame(CS_pt = CS_preprocessing_time_pulse, CS_pt_dominance = CS_preprocessing_time_pulsedom, CS_pt_ERSPA = CS_preprocessing_time_erspa,
-                    CS_t = CS_elapsed_time_pulse, CS_pt_dominance = CS_elapsed_time_pulsedom, CS_t_ERSPA = CS_elapsed_time_erspa, 
-                    PH_pt = PH_preprocessing_time_pulse, PH_pt_dominance = PH_preprocessing_time_pulsedom, PH_pt_ERSPA = PH_preprocessing_time_erspa,
-                    PH_t = PH_elapsed_time_pulse, PH_pt_dominance = PH_elapsed_time_pulsedom, PH_t_ERSPA = PH_elapsed_time_erspa,
-                    SY_pt = SY_preprocessing_time_pulse, SY_pt_dominance = SY_preprocessing_time_pulsedom, SY_pt_ERSPA = SY_preprocessing_time_erspa,
-                    SY_t = SY_elapsed_time_pulse, SY_pt_dominance = SY_elapsed_time_pulsedom, SY_t_ERSPA = SY_elapsed_time_erspa)
+                    CS_t = CS_elapsed_time_pulse, CS_t_dominance = CS_elapsed_time_pulsedom, CS_t_ERSPA = CS_elapsed_time_erspa)
+CSV.write("CS_time_sdrspp.csv", df_time)
 
-CSV.write("time_sdrspp.csv", df_time)
+df_time = DataFrame(PH_pt = PH_preprocessing_time_pulse, PH_pt_dominance = PH_preprocessing_time_pulsedom, PH_pt_ERSPA = PH_preprocessing_time_erspa,
+                    PH_t = PH_elapsed_time_pulse, PH_t_dominance = PH_elapsed_time_pulsedom, PH_t_ERSPA = PH_elapsed_time_erspa)
+CSV.write("PH_time_sdrspp.csv", df_time)
 
-df_nondominated = DataFrame(CS_n = CS_nondominated_paths_pulse, CS_n_dominance = CS_nondominated_paths_pulsedom, CS_n_ERSPA = CS_nondominated_paths_erspa,
-                            PH_n = PH_nondominated_paths_pulse, PH_n_dominance = PH_nondominated_paths_pulsedom, PH_n_ERSPA = PH_nondominated_paths_erspa,
-                            SY_n = SY_nondominated_paths_pulse, SY_n_dominance = SY_nondominated_paths_pulsedom, SY_n_ERSPA = SY_nondominated_paths_erspa)
+df_time = DataFrame(SY_pt = SY_preprocessing_time_pulse, SY_pt_dominance = SY_preprocessing_time_pulsedom, SY_pt_ERSPA = SY_preprocessing_time_erspa,
+                    SY_t = SY_elapsed_time_pulse, SY_t_dominance = SY_elapsed_time_pulsedom, SY_t_ERSPA = SY_elapsed_time_erspa)
+CSV.write("SY_time_sdrspp.csv", df_time)
 
-CSV.write("nondominated_sdrspp.csv", df_nondominated)
+df_nondominated = DataFrame(CS_n = CS_nondominated_paths_pulse, CS_n_dominance = CS_nondominated_paths_pulsedom, CS_n_ERSPA = CS_nondominated_paths_erspa)
+CSV.write("CS_nondominated_sdrspp.csv", df_nondominated)
+
+df_nondominated = DataFrame(PH_n = PH_nondominated_paths_pulse, PH_n_dominance = PH_nondominated_paths_pulsedom, PH_n_ERSPA = PH_nondominated_paths_erspa)
+CSV.write("PH_nondominated_sdrspp.csv", df_nondominated)
+
+df_nondominated = DataFrame(SY_n = SY_nondominated_paths_pulse, SY_n_dominance = SY_nondominated_paths_pulsedom, SY_n_ERSPA = SY_nondominated_paths_erspa)
+CSV.write("SY_nondominated_sdrspp.csv", df_nondominated)

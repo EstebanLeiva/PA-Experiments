@@ -29,7 +29,7 @@ function erspa_preprocess_experiments(graph::PA.Graph, source_node::Int, target_
     target_node = graph.nodes[target_node].name
     erspa = initialize_ErspaStar(graph, α, covariance_dict, node_coordinates, source_node, target_node, max_speed, distance_divisor)
     preprocessing_time = @elapsed begin
-        preprocess!(erspa)
+        preprocess_erspa!(erspa)
     end
     return erspa, preprocessing_time
 end
@@ -72,6 +72,7 @@ function experiment_sdrspp(graph::PA.Graph, source_node::Int, target_node::Int,
 
     # Pulse
     pulse = PA.Pulse(problem, parameters)
+    pulse.parameters.max_pulse_depth = length(shortest_mean_path)
     pulse.instance_info["pruned_by_bounds"] = 0
     pulse.instance_info["pruned_by_feasibility"] = 0
     pulse.instance_info["total_length_pruned_by_bounds"] = 0
@@ -88,12 +89,13 @@ function experiment_sdrspp(graph::PA.Graph, source_node::Int, target_node::Int,
     experiment_info["instance_info_pulse"]["optimal_path"] = pulse.optimal_path
     experiment_info["instance_info_pulse"]["pruned_by_bounds"] = pulse.instance_info["pruned_by_bounds"]
     experiment_info["instance_info_pulse"]["total_length_pruned_by_bounds"] = pulse.instance_info["total_length_pruned_by_bounds"]
-    experiment_info["instance_info_pulse"]["number_nondominanted_paths"] = length(pulse.pulse_queue)
+    experiment_info["instance_info_pulse"]["number_nondominanted_paths"] = pulse.instance_info["number_nondominanted_paths"]
     experiment_info["instance_info_pulse"]["total_elapsed_time"] = elapsed_time_pulse
     experiment_info["instance_info_pulse"]["preprocessing_time"] = preprocessing_time
 
     # Pulse Dominance
     pulse = PA.Pulse(problem, parameters)
+    pulse.parameters.max_pulse_depth = length(shortest_mean_path)
     pulse.instance_info["pruned_by_bounds"] = 0
     pulse.instance_info["pruned_by_dominance"] = 0
     pulse.instance_info["total_length_pruned_by_bounds"] = 0
@@ -111,7 +113,7 @@ function experiment_sdrspp(graph::PA.Graph, source_node::Int, target_node::Int,
     experiment_info["instance_info_pulse_dominance"]["pruned_by_dominance"] = pulse.instance_info["pruned_by_dominance"]
     experiment_info["instance_info_pulse_dominance"]["total_length_pruned_by_dominance"] = pulse.instance_info["total_length_pruned_by_dominance"]
     experiment_info["instance_info_pulse_dominance"]["total_length_pruned_by_bounds"] = pulse.instance_info["total_length_pruned_by_bounds"]
-    experiment_info["instance_info_pulse_dominance"]["number_nondominanted_paths"] = length(pulse.pulse_queue)
+    experiment_info["instance_info_pulse_dominance"]["number_nondominanted_paths"] = pulse.instance_info["number_nondominanted_paths"]
     experiment_info["instance_info_pulse_dominance"]["total_elapsed_time"] = elapsed_time_pulse_dominance
     experiment_info["instance_info_pulse_dominance"]["preprocessing_time"] = preprocessing_time
 
@@ -174,62 +176,65 @@ function n_experiments_sdrspp(graph::PA.Graph, target_node::Int, α::Float64, fo
         constants = Dict("alpha" => α)
         problem = PA.Problem(graph, source_node, target_node, true, constants)
 
-        experiment_info = experiment_sdrspp(graph, source_node, target_node, covariance_dict, α, folder_path, initial_bound, 
+        try 
+            experiment_info = experiment_sdrspp(graph, source_node, target_node, covariance_dict, α, folder_path, initial_bound, 
                                             max_speed, distance_divisor, params, problem, pruning_functions, 
                                             pruning_functions_dominance, pulse_score, info_update)
-        
-        instance_info_pulse = experiment_info["instance_info_pulse"]
-        instance_info_pulse_dominance = experiment_info["instance_info_pulse_dominance"]
-        instance_info_erspa = experiment_info["instance_info_erspa"]
-
-        if instance_info_erspa["optimal_path"] != instance_info_pulse["optimal_path"] && instance_info_pulse_dominance["optimal_path"] != instance_info_pulse["optimal_path"]
-            println("-------------------------------------------------------------------")
-            println("Different optimal paths")
-            println("-------------------------------------------------------------------")
-
-            println("ERSPA")
-            optimal_path_erspa = instance_info_erspa["optimal_path"]
-            println(optimal_path_erspa)
-            mean, variance, covariance = get_path_distribution(graph, optimal_path_erspa, covariance_dict)
-            println((mean, variance, covariance))
-            println(quantile(Normal(mean, √(variance + covariance)), α))
-            println("-------------------------------------------------------------------")
-
-            println("PULSE")
-            optimal_path_pulse = instance_info_pulse["optimal_path"]
-            println(optimal_path_pulse)
-            mean, variance, covariance = get_path_distribution(graph, optimal_path_pulse, covariance_dict)
-            println((mean, variance, covariance))
-            println(quantile(Normal(mean, √(variance + covariance)), α))
-            println("-------------------------------------------------------------------")
-
-            println("PULSE Dominance")
-            optimal_path_pulse_dominance = instance_info_pulse_dominance["optimal_path"]
-            println(optimal_path_pulse_dominance)
-            mean, variance, covariance = get_path_distribution(graph, optimal_path_pulse_dominance, covariance_dict)
-            println((mean, variance, covariance))
-            println(quantile(Normal(mean, √(variance + covariance)), α))
-            println("-------------------------------------------------------------------")
-            error("Different optimal paths")
+            instance_info_pulse = experiment_info["instance_info_pulse"]
+            instance_info_pulse_dominance = experiment_info["instance_info_pulse_dominance"]
+            instance_info_erspa = experiment_info["instance_info_erspa"]
+    
+            if instance_info_erspa["optimal_path"] != instance_info_pulse["optimal_path"] && instance_info_pulse_dominance["optimal_path"] != instance_info_pulse["optimal_path"]
+                println("-------------------------------------------------------------------")
+                println("Different optimal paths")
+                println("-------------------------------------------------------------------")
+    
+                println("ERSPA")
+                optimal_path_erspa = instance_info_erspa["optimal_path"]
+                println(optimal_path_erspa)
+                mean, variance, covariance = get_path_distribution(graph, optimal_path_erspa, covariance_dict)
+                println((mean, variance, covariance))
+                println(quantile(Normal(mean, √(variance + covariance)), α))
+                println("-------------------------------------------------------------------")
+    
+                println("PULSE")
+                optimal_path_pulse = instance_info_pulse["optimal_path"]
+                println(optimal_path_pulse)
+                mean, variance, covariance = get_path_distribution(graph, optimal_path_pulse, covariance_dict)
+                println((mean, variance, covariance))
+                println(quantile(Normal(mean, √(variance + covariance)), α))
+                println("-------------------------------------------------------------------")
+    
+                println("PULSE Dominance")
+                optimal_path_pulse_dominance = instance_info_pulse_dominance["optimal_path"]
+                println(optimal_path_pulse_dominance)
+                mean, variance, covariance = get_path_distribution(graph, optimal_path_pulse_dominance, covariance_dict)
+                println((mean, variance, covariance))
+                println(quantile(Normal(mean, √(variance + covariance)), α))
+                println("-------------------------------------------------------------------")
+                error("Different optimal paths")
+            end
+    
+            append!(info_pulse["pruned_by_bounds"], instance_info_pulse["pruned_by_bounds"])
+            append!(info_pulse["total_length_pruned_by_bounds"], instance_info_pulse["total_length_pruned_by_bounds"])
+            append!(info_pulse["number_nondominanted_paths"], instance_info_pulse["number_nondominanted_paths"])
+            append!(info_pulse["total_elapsed_time"], instance_info_pulse["total_elapsed_time"])
+            append!(info_pulse["preprocessing_time"], instance_info_pulse["preprocessing_time"])
+    
+            append!(info_pulse_dominance["pruned_by_bounds"], instance_info_pulse_dominance["pruned_by_bounds"])
+            append!(info_pulse_dominance["pruned_by_dominance"], instance_info_pulse_dominance["pruned_by_dominance"])
+            append!(info_pulse_dominance["total_length_pruned_by_dominance"], instance_info_pulse_dominance["total_length_pruned_by_dominance"])
+            append!(info_pulse_dominance["total_length_pruned_by_bounds"], instance_info_pulse_dominance["total_length_pruned_by_bounds"])
+            append!(info_pulse_dominance["number_nondominanted_paths"], instance_info_pulse_dominance["number_nondominanted_paths"])
+            append!(info_pulse_dominance["total_elapsed_time"], instance_info_pulse_dominance["total_elapsed_time"])
+            append!(info_pulse_dominance["preprocessing_time"], instance_info_pulse_dominance["preprocessing_time"])
+    
+            append!(info_erspa["number_nondominanted_paths"], instance_info_erspa["number_nondominanted_paths"])
+            append!(info_erspa["total_elapsed_time"], instance_info_erspa["total_elapsed_time"])
+            append!(info_erspa["preprocessing_time"], instance_info_erspa["preprocessing_time"])
+        catch e
+            @warn "Error in experiment_sdrspp" exception=(e, catch_backtrace())
         end
-
-        append!(info_pulse["pruned_by_bounds"], instance_info_pulse["pruned_by_bounds"])
-        append!(info_pulse["total_length_pruned_by_bounds"], instance_info_pulse["total_length_pruned_by_bounds"])
-        append!(info_pulse["number_nondominanted_paths"], instance_info_pulse["number_nondominanted_paths"])
-        append!(info_pulse["total_elapsed_time"], instance_info_pulse["total_elapsed_time"])
-        append!(info_pulse["preprocessing_time"], instance_info_pulse["preprocessing_time"])
-
-        append!(info_pulse_dominance["pruned_by_bounds"], instance_info_pulse_dominance["pruned_by_bounds"])
-        append!(info_pulse_dominance["pruned_by_dominance"], instance_info_pulse_dominance["pruned_by_dominance"])
-        append!(info_pulse_dominance["total_length_pruned_by_dominance"], instance_info_pulse_dominance["total_length_pruned_by_dominance"])
-        append!(info_pulse_dominance["total_length_pruned_by_bounds"], instance_info_pulse_dominance["total_length_pruned_by_bounds"])
-        append!(info_pulse_dominance["number_nondominanted_paths"], instance_info_pulse_dominance["number_nondominanted_paths"])
-        append!(info_pulse_dominance["total_elapsed_time"], instance_info_pulse_dominance["total_elapsed_time"])
-        append!(info_pulse_dominance["preprocessing_time"], instance_info_pulse_dominance["preprocessing_time"])
-
-        append!(info_erspa["number_nondominanted_paths"], instance_info_erspa["number_nondominanted_paths"])
-        append!(info_erspa["total_elapsed_time"], instance_info_erspa["total_elapsed_time"])
-        append!(info_erspa["preprocessing_time"], instance_info_erspa["preprocessing_time"])
     end
     return info_pulse, info_pulse_dominance, info_erspa
 end
