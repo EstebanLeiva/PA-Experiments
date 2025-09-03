@@ -15,7 +15,7 @@ function load_graph_from_ta_chen(tntp_file_dir::String, network_name::String)
         speed = rand(Uniform(10, 100))
         mean = length / speed
         CV = rand(Uniform(0.1, 1))
-        variance = mean * CV
+        variance = (mean * CV)^2
         cost = 0.0
         deterministic_info = Dict{String, Float64}("cost" => cost)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))

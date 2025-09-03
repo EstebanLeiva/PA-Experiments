@@ -106,8 +106,6 @@ end
 
 function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
                           graph::PA.Graph, 
-                          num_target_nodes::Int,
-                          num_source_nodes::Int,
                           parameters:: PA.Parameters,
                           params_weight::PA.Parameters,
                           constants::Dict{String, Float64},
@@ -126,7 +124,9 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
         "preprocessing_time" => Vector{Float64}(),
         "optimal_path_length" => Vector{Int}(),
         "distance_source_target" => Vector{Int}(),
-        "timeout" => Vector{Int}()
+        "distance" => Vector{Int}(),
+        "timeout" => Vector{Bool}(),
+        "optimal_path" => Vector{String}()
     )
 
     for target in ProgressBar(keys(pair_dict))
@@ -134,6 +134,7 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
             problem = PA.Problem(graph, source, target, true, constants)
             pulse_weight = PA.Pulse(problem, params_weight)
             pulse = PA.Pulse(problem, parameters)
+            pulse.parameters.timeout = false
             # Initialize instance_info
             pulse.instance_info["pruned_by_bounds"] = 0
             pulse.instance_info["pruned_by_feasibility"] = 0
@@ -142,7 +143,8 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
             pulse.instance_info["number_nondominated_paths"] = 0
             
             try
-                elapsed_time, preprocessing_time, optimal_path_length, instance_info = one_sarp(pulse, 
+
+                elapsed_time, preprocessing_time, optimal_path, optimal_path_length, distance, instance_info, timeout = one_sarp(pulse, 
                                                                                                 pulse_weight,
                                                                                                 info_update, 
                                                                                                 pruning_functions, 
@@ -156,7 +158,12 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
                 append!(total_instance_info["elapsed_time"], elapsed_time)
                 append!(total_instance_info["preprocessing_time"], preprocessing_time)
                 append!(total_instance_info["optimal_path_length"], optimal_path_length)
-                
+                append!(total_instance_info["distance"], distance)
+                append!(total_instance_info["timeout"], timeout)
+                #push!(total_instance_info["optimal_path"], join(optimal_path, ", "))
+                #println("Optimal Path: ", join(optimal_path, ", "))
+                #println("info ", total_instance_info["optimal_path"])
+
             catch e
                 @warn "Non-reachable node" exception=(e, catch_backtrace())
             end
@@ -170,13 +177,18 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
         length_pruned_by_bounds = length_pruned_by_bounds,
         length_pruned_by_feasibility = length_pruned_by_feasibility
     )
+
+    #println(total_instance_info["optimal_path"])
     df = DataFrame(
         elapsed_time = total_instance_info["elapsed_time"],
         preprocessing_time = total_instance_info["preprocessing_time"],
         optimal_path_length = total_instance_info["optimal_path_length"],
         number_nondominated_paths = total_instance_info["number_nondominated_paths"],
         pruned_by_bounds = total_instance_info["pruned_by_bounds"],
-        pruned_by_feasibility = total_instance_info["pruned_by_feasibility"]
+        pruned_by_feasibility = total_instance_info["pruned_by_feasibility"],
+        distance = total_instance_info["distance"],
+        timeout = total_instance_info["timeout"]#,
+        #optimal_path = total_instance_info["optimal_path"]
     )
     name = file_name * "_pruning.csv"
     CSV.write(name, df_prune)
@@ -221,5 +233,6 @@ function one_sarp(pulse, pulse_weight, info_update, pruning_functions, pulse_sco
             run_pulse!(pulse, info_update, pruning_functions, pulse_score)
         end
     end
-    return elapsed_time, preprocessing_time, length(pulse.optimal_path), pulse.instance_info
+
+    return elapsed_time, preprocessing_time, pulse.optimal_path, length(pulse.optimal_path), distance, pulse.instance_info, pulse.parameters.timeout
 end

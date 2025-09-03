@@ -84,7 +84,7 @@ function experiment_sdrspp(graph::PA.Graph, source_node::Int, target_node::Int,
     end
     # Pulse normal
     elapsed_time_pulse = @elapsed begin
-        PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, shortest_mean_path, quantile_m)
+        PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=quantile_m)
     end
     experiment_info["instance_info_pulse"]["optimal_path"] = pulse.optimal_path
     experiment_info["instance_info_pulse"]["pruned_by_bounds"] = pulse.instance_info["pruned_by_bounds"]
@@ -105,7 +105,7 @@ function experiment_sdrspp(graph::PA.Graph, source_node::Int, target_node::Int,
         PA.preprocess!(pulse)
     end
     elapsed_time_pulse_dominance = @elapsed begin
-        PA.run_pulse!(pulse, info_update, pruning_functions_dominance, pulse_score, shortest_mean_path, quantile_m)
+        PA.run_pulse!(pulse, info_update, pruning_functions_dominance, pulse_score, init_optimal_path=shortest_mean_path, init_objective=quantile_m)
     end
 
     experiment_info["instance_info_pulse_dominance"]["optimal_path"] = pulse.optimal_path
@@ -171,7 +171,9 @@ function n_experiments_sdrspp(graph::PA.Graph, target_node::Int, α::Float64, fo
                             deterministic_weights, 
                             random_weights, 
                             prep_deterministic_weights, 
-                            prep_random_weights)
+                            prep_random_weights,
+                            Inf,
+                            false)
 
         constants = Dict("alpha" => α)
         problem = PA.Problem(graph, source_node, target_node, true, constants)
