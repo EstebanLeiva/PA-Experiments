@@ -1,4 +1,78 @@
 using ProgressBars
+using PulseAlgorithm
+const PA = PulseAlgorithm
+
+function get_path_distribution(graph::PA.Graph, path::Vector{Int}, cov_dict::DefaultDict{Tuple{Int, Int, Int, Int}, Float64})
+    mean = 0.0
+    variance = 0.0
+    covariance_term = 0.0
+    for i in 1:length(path)-1
+        mean += graph.nodes[path[i]].links[path[i+1]].random["time"]["mean"]
+        variance += graph.nodes[path[i]].links[path[i+1]].random["time"]["variance"]
+        for ii in i + 1:length(path)-1
+            covariance_term += 2*cov_dict[(path[i], path[i+1], path[ii], path[ii+1])]
+        end
+    end
+    return mean, variance, covariance_term
+end
+
+function get_covariance_term(covariance_dict::DefaultDict{Tuple{Int, Int, Int, Int}, Float64}, reachable_node::Int, path::Vector{Int})
+    n = length(path)
+    if n > 1
+        last_node = path[end]
+        current_node = reachable_node
+        covariance_sum = 0.0
+        for i in 1:n-1
+            covariance_sum += 2 * covariance_dict[(path[i], path[i+1], last_node, current_node)]
+        end
+        return covariance_sum
+    else
+        return 0.0
+    end
+end
+
+function get_timeBudget(graph::PA.Graph, start_node::Int, target_node::Int, α::Float64, γ::Float64, cov_dict::PA.DefaultDict{Tuple{Int,Int,Int,Int},Float64})
+    shortest_mean_path = PA.dijkstra(graph, start_node, target_node, "time", "mean")
+    shortest_cost_path = PA.dijkstra(graph, start_node, target_node, "cost")
+
+    cost_min_mean = 0.0
+    for i in 1:length(shortest_mean_path)-1
+        cost_min_mean = cost_min_mean + graph.nodes[shortest_mean_path[i]].links[shortest_mean_path[i+1]].deterministic["cost"]
+    end
+
+    cost_min_cost = 0.0
+    for i in 1:length(shortest_cost_path)-1
+        cost_min_cost = cost_min_cost + graph.nodes[shortest_cost_path[i]].links[shortest_cost_path[i+1]].deterministic["cost"]
+    end
+
+    mean, variance, covariance_term = get_path_distribution(graph, shortest_mean_path, cov_dict)
+    T_t_α = quantile(Normal(mean, √(variance + covariance_term)), α)
+
+    mean, variance, covariance_term = get_path_distribution(graph, shortest_cost_path, cov_dict)
+    T_c_α = quantile(Normal(mean, √(variance + covariance_term)), α)
+
+    T = T_t_α + (T_c_α - T_t_α) * (1 - γ) + 1e-3
+    return T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost
+end
+
+function timeout(f::Function, timeout_sec::Real, default_val)
+    task = @async f()
+
+    timer = Timer(timeout_sec) do _
+        schedule(task, ErrorException("Timeout"), error=true)
+    end
+
+    local result
+    try
+        result = fetch(task)
+    catch e
+        result = default_val
+    finally
+        close(timer)
+    end
+
+    return result
+end
 
 function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_functions::Vector{Function}, pulse_score::Function, initial_bound::Bool)
     preprocessing_time = @elapsed begin
@@ -22,11 +96,11 @@ function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_funct
 
     if reliability_shortest_mean_path_m >= α && initial_bound
         elapsed_time = @elapsed begin
-            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, shortest_mean_path, cost_min_mean)
+            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=cost_min_mean)
         end
     elseif reliability_shortest_cost_path_c >= α && initial_bound
         elapsed_time = @elapsed begin
-            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, shortest_cost_path, cost_min_cost)
+            PA.run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_cost_path, init_objective=cost_min_cost)
         end
     else
         elapsed_time = @elapsed begin
@@ -61,10 +135,6 @@ function n_experiments_PaSarp(graph::PA.Graph,
     for source_node in source_nodes
         problem = PA.Problem(graph, source_node, target_node, true, constants)
         pulse = PA.Pulse(problem, parameters)
-    
-        # These are the error values, that will not be taken into account for the analysis
-        elapsed_time = 123456789
-        preprocessing_time = 123456789
 
         try
             elapsed_time, preprocessing_time, time_budget, distance = experiment_PaSarp(pulse, info_update, pruning_functions, pulse_score, initial_bound)
@@ -120,7 +190,9 @@ function run_experiments(graph::PA.Graph,
                                             deterministic_weights, 
                                             random_weights, 
                                             prep_deterministic_weights, 
-                                            prep_random_weights)
+                                            prep_random_weights,
+                                            Inf,
+                                            false)
                         graph.covariance["time"] = get_covariance_dict(graph, "time", rhos[i], max_depth)["time"]
                         instance_info = n_experiments_PaSarp(graph, target_node, parameters, constants, pruning_functions, info_update, pulse_score, initial_bound, n) 
                         append!(info["elapsed_time"], instance_info["elapsed_time"])

@@ -55,7 +55,7 @@ function load_graph_Sydney_chen(tntp_file_dir::String, network_name::String)
         dst = string(ta_data.end_node[i])
         mean = rand(Uniform(10, 100))
         CV = rand(Uniform(0.1, 1))
-        variance = mean * CV
+        variance = (mean * CV)^2
         cost = 0.0
         deterministic_info = Dict{String, Float64}("cost" => cost)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
@@ -77,7 +77,7 @@ function load_graph_Philadelphia_chen(tntp_file_dir::String, network_name::Strin
         dst = string(ta_data.end_node[i])
         mean = rand(Uniform(10, 100))
         CV = rand(Uniform(0.1, 1))
-        variance = mean * CV
+        variance = (mean * CV)^2
         cost = 0.0
         deterministic_info = Dict{String, Float64}("cost" => cost)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))

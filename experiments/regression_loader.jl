@@ -198,7 +198,7 @@ function load_graph_from_ta(tntp_file_dir::String, flow_file_dir::String, networ
             fft = ta_data.free_flow_time[i]
         end
         mean = fft * (1 + ta_data.B[i] * (cost_flow[(start, dst)][2] / ta_data.capacity[i])^ta_data.power[i])
-        variance = CV * abs(mean - fft)
+        variance = (CV * abs(mean - fft))^2
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
         
         deterministic_info = Dict{String, Float64}("cost" => cost, "weight" => 1)

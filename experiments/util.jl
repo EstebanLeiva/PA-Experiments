@@ -1,4 +1,6 @@
 using ProgressBars
+using PulseAlgorithm
+const PA = PulseAlgorithm
 
 function get_path_distribution(graph::PA.Graph, path::Vector{Int}, cov_dict::DefaultDict{Tuple{Int, Int, Int, Int}, Float64})
     mean = 0.0
@@ -53,7 +55,31 @@ function get_timeBudget(graph::PA.Graph, start_node::Int, target_node::Int, α::
     return T, shortest_mean_path, cost_min_mean, shortest_cost_path, cost_min_cost
 end
 
-function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_functions::Vector{Function}, pulse_score::Function, initial_bound::Bool)
+function timeout(f::Function, timeout_sec::Real, default_val)
+    task = @async f()
+
+    timer = Timer(timeout_sec) do _
+        schedule(task, ErrorException("Timeout"), error=true)
+    end
+
+    local result
+    try
+        result = fetch(task)
+    catch e
+        result = default_val
+    finally
+        close(timer)
+    end
+
+    return result
+end
+
+function experiment_PaSarp(pulse::PA.Pulse, 
+                            info_update::Function, 
+                            pruning_functions::Vector{Function}, 
+                            pulse_score::Function, 
+                            initial_bound::Bool,
+                            vanilla::Bool)
     preprocessing_time = @elapsed begin
         preprocess!(pulse)
     end
@@ -72,24 +98,49 @@ function experiment_PaSarp(pulse::PA.Pulse, info_update::Function, pruning_funct
 
     mean_c, variance_c, covariance_term_c = get_path_distribution(graph, shortest_cost_path, covariance_dict)
     reliability_shortest_cost_path_c = cdf(Normal(mean_c, √(variance_c + covariance_term_c)), T)
-
-    if reliability_shortest_mean_path_m >= α && initial_bound
-        elapsed_time = @elapsed begin
-            run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=cost_min_mean)
+    if vanilla
+        f_to_timeout = () -> begin
+            if reliability_shortest_mean_path_m >= α && initial_bound
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=cost_min_mean)
+            elseif reliability_shortest_cost_path_c >= α && initial_bound
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_cost_path, init_objective=cost_min_cost)
+            else
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score)
+            end
         end
-    elseif reliability_shortest_cost_path_c >= α && initial_bound
         elapsed_time = @elapsed begin
-            run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_cost_path, init_objective=cost_min_cost)
+            timeout_sec = 10
+            result = timeout(f_to_timeout, timeout_sec, true)
         end
+        return elapsed_time, preprocessing_time, Dict(), Vector()
     else
-        elapsed_time = @elapsed begin
-            run_pulse!(pulse, info_update, pruning_functions, pulse_score)
+        if reliability_shortest_mean_path_m >= α && initial_bound
+            elapsed_time = @elapsed begin
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_mean_path, init_objective=cost_min_mean)
+            end
+        elseif reliability_shortest_cost_path_c >= α && initial_bound
+            elapsed_time = @elapsed begin
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score, init_optimal_path=shortest_cost_path, init_objective=cost_min_cost)
+            end
+        else
+            elapsed_time = @elapsed begin
+                run_pulse!(pulse, info_update, pruning_functions, pulse_score)
+            end
         end
+        return elapsed_time, preprocessing_time, pulse.instance_info, length(pulse.optimal_path)
     end
-    return elapsed_time, preprocessing_time, pulse.instance_info
 end
 
-function n_experiments_PaSarp(graph::PA.Graph, target_node::Int, parameters::PA.Parameters, constants::Dict{String, Float64}, pruning_functions::Vector{Function}, info_update::Function, pulse_score::Function, initial_bound::Bool, n::Int)
+function n_experiments_PaSarp(graph::PA.Graph, 
+                                target_node::Int, 
+                                parameters::PA.Parameters, 
+                                constants::Dict{String, Float64}, 
+                                pruning_functions::Vector{Function}, 
+                                info_update::Function, 
+                                pulse_score::Function, 
+                                initial_bound::Bool, 
+                                n::Int,
+                                vanilla::Bool)
     total_instance_info = Dict(
         "pruned_by_bounds" => Vector{Int}(),
         "pruned_by_feasibility" => Vector{Int}(),
@@ -97,7 +148,8 @@ function n_experiments_PaSarp(graph::PA.Graph, target_node::Int, parameters::PA.
         "total_length_pruned_by_feasibility" => Vector{Int}(),
         "number_nondominanted_paths" => Vector{Int}(),
         "total_elapsed_time" => Vector{Float64}(),
-        "total_preprocessing_time" => Vector{Float64}()
+        "total_preprocessing_time" => Vector{Float64}(),
+        "total_optimal_path_length" => Vector{Int}()
     )
 
     source_nodes = sample(collect(keys(graph.nodes)), n, replace=false)
@@ -111,33 +163,40 @@ function n_experiments_PaSarp(graph::PA.Graph, target_node::Int, parameters::PA.
         pulse.instance_info["total_length_pruned_by_feasibility"] = 0
         pulse.instance_info["number_nondominanted_paths"] = 0
 
-        # These are the error values, that will not be taken into account for the analysis
-        elapsed_time = 123456789
-        preprocessing_time = 123456789
-        instance_info = Dict{String, Float64}()
-        instance_info["pruned_by_bounds"] = 123456789
-        instance_info["pruned_by_feasibility"] = 123456789
-        instance_info["total_length_pruned_by_bounds"] = 123456789
-        instance_info["total_length_pruned_by_feasibility"] = 123456789
-        instance_info["number_nondominanted_paths"] = 123456789
-
         try
-            elapsed_time, preprocessing_time, instance_info = experiment_PaSarp(pulse, info_update, pruning_functions, pulse_score, initial_bound)
-            append!(total_instance_info["pruned_by_bounds"], instance_info["pruned_by_bounds"])
-            append!(total_instance_info["pruned_by_feasibility"], instance_info["pruned_by_feasibility"])
-            append!(total_instance_info["total_length_pruned_by_bounds"], instance_info["total_length_pruned_by_bounds"])
-            append!(total_instance_info["total_length_pruned_by_feasibility"], instance_info["total_length_pruned_by_feasibility"])
-            append!(total_instance_info["number_nondominanted_paths"], instance_info["number_nondominanted_paths"])
+            elapsed_time, preprocessing_time, instance_info, optimal_path_length = experiment_PaSarp(pulse, 
+                                                                                info_update, 
+                                                                                pruning_functions, 
+                                                                                pulse_score, 
+                                                                                initial_bound, 
+                                                                                vanilla)
+            if !vanilla
+                append!(total_instance_info["pruned_by_bounds"], instance_info["pruned_by_bounds"])
+                append!(total_instance_info["pruned_by_feasibility"], instance_info["pruned_by_feasibility"])
+                append!(total_instance_info["total_length_pruned_by_bounds"], instance_info["total_length_pruned_by_bounds"])
+                append!(total_instance_info["total_length_pruned_by_feasibility"], instance_info["total_length_pruned_by_feasibility"])
+                append!(total_instance_info["number_nondominanted_paths"], instance_info["number_nondominanted_paths"])
+                append!(total_instance_info["total_optimal_path_length"], optimal_path_length)
+            end
             append!(total_instance_info["total_elapsed_time"], elapsed_time)
             append!(total_instance_info["total_preprocessing_time"], preprocessing_time)
         catch e
             @warn "Non-reachable node" exception=(e, catch_backtrace())
         end
     end
-    return total_instance_info
+    return total_instance_info, source_nodes
 end
 
-function aggregate_experiments(sampled_keys::Vector{Int}, graph::PA.Graph, parameters::PA.Parameters, constants::Dict{String, Float64}, pruning_functions::Vector{Function}, info_update::Function, pulse_score::Function, n::Int)
+function aggregate_experiments(sampled_keys::Vector{Int}, 
+                                graph::PA.Graph, 
+                                parameters::PA.Parameters, 
+                                constants::Dict{String, Float64}, 
+                                pruning_functions::Vector{Function}, 
+                                info_update::Function, 
+                                pulse_score::Function, 
+                                n::Int;
+                                vanilla::Bool=false,
+                                source_dict::Dict{Int, Vector{Int}}=Dict())
     total_instance_info = Dict(
         "pruned_by_bounds" => Vector{Int}(),
         "pruned_by_feasibility" => Vector{Int}(),
@@ -145,17 +204,22 @@ function aggregate_experiments(sampled_keys::Vector{Int}, graph::PA.Graph, param
         "total_length_pruned_by_feasibility" => Vector{Int}(),
         "number_nondominanted_paths" => Vector{Int}(),
         "total_elapsed_time" => Vector{Float64}(),
-        "total_preprocessing_time" => Vector{Float64}()
+        "total_preprocessing_time" => Vector{Float64}(),
+        "total_optimal_path_length" => Vector{Int}(),
+        "source_nodes" => Dict{Int, Vector{Int}}()
     )
     for i in ProgressBar(1:length(sampled_keys))
         key = sampled_keys[i]
-        instance_info = n_experiments_PaSarp(graph, key, parameters, constants, pruning_functions, info_update, pulse_score, true, n)
-
-        total_instance_info["pruned_by_bounds"] = [total_instance_info["pruned_by_bounds"] ; instance_info["pruned_by_bounds"]]
-        total_instance_info["pruned_by_feasibility"] = [total_instance_info["pruned_by_feasibility"] ; instance_info["pruned_by_feasibility"]]
-        total_instance_info["total_length_pruned_by_bounds"] = [total_instance_info["total_length_pruned_by_bounds"] ; instance_info["total_length_pruned_by_bounds"]]
-        total_instance_info["total_length_pruned_by_feasibility"] = [total_instance_info["total_length_pruned_by_feasibility"] ; instance_info["total_length_pruned_by_feasibility"]]
-        total_instance_info["number_nondominanted_paths"] = [total_instance_info["number_nondominanted_paths"] ; instance_info["number_nondominanted_paths"]]
+        instance_info, source_nodes = n_experiments_PaSarp(graph, key, parameters, constants, pruning_functions, info_update, pulse_score, true, n, vanilla)
+        total_instance_info["source_nodes"][key] = source_nodes
+        if !vanilla
+            total_instance_info["pruned_by_bounds"] = [total_instance_info["pruned_by_bounds"] ; instance_info["pruned_by_bounds"]]
+            total_instance_info["pruned_by_feasibility"] = [total_instance_info["pruned_by_feasibility"] ; instance_info["pruned_by_feasibility"]]
+            total_instance_info["total_length_pruned_by_bounds"] = [total_instance_info["total_length_pruned_by_bounds"] ; instance_info["total_length_pruned_by_bounds"]]
+            total_instance_info["total_length_pruned_by_feasibility"] = [total_instance_info["total_length_pruned_by_feasibility"] ; instance_info["total_length_pruned_by_feasibility"]]
+            total_instance_info["number_nondominanted_paths"] = [total_instance_info["number_nondominanted_paths"] ; instance_info["number_nondominanted_paths"]]
+            total_instance_info["total_optimal_path_length"] = [total_instance_info["total_optimal_path_length"] ; instance_info["total_optimal_path_length"]]
+        end
         total_instance_info["total_elapsed_time"] = [total_instance_info["total_elapsed_time"] ; instance_info["total_elapsed_time"]]
         total_instance_info["total_preprocessing_time"] = [total_instance_info["total_preprocessing_time"] ; instance_info["total_preprocessing_time"]]
 

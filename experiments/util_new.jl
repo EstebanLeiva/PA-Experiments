@@ -126,7 +126,9 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
         "distance_source_target" => Vector{Int}(),
         "distance" => Vector{Int}(),
         "timeout" => Vector{Bool}(),
-        "optimal_path" => Vector{String}()
+        "optimal_path" => Vector{String}(),
+        "target" => Vector{Int}(),
+        "source" => Vector{Int}()
     )
 
     for target in ProgressBar(keys(pair_dict))
@@ -160,9 +162,8 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
                 append!(total_instance_info["optimal_path_length"], optimal_path_length)
                 append!(total_instance_info["distance"], distance)
                 append!(total_instance_info["timeout"], timeout)
-                #push!(total_instance_info["optimal_path"], join(optimal_path, ", "))
-                #println("Optimal Path: ", join(optimal_path, ", "))
-                #println("info ", total_instance_info["optimal_path"])
+                append!(total_instance_info["target"], target)
+                append!(total_instance_info["source"], source)
 
             catch e
                 @warn "Non-reachable node" exception=(e, catch_backtrace())
@@ -187,8 +188,9 @@ function experiments_sarp(pair_dict::Dict{Int, Vector{Int}},
         pruned_by_bounds = total_instance_info["pruned_by_bounds"],
         pruned_by_feasibility = total_instance_info["pruned_by_feasibility"],
         distance = total_instance_info["distance"],
-        timeout = total_instance_info["timeout"]#,
-        #optimal_path = total_instance_info["optimal_path"]
+        timeout = total_instance_info["timeout"],
+        target = total_instance_info["target"],
+        source = total_instance_info["source"]
     )
     name = file_name * "_pruning.csv"
     CSV.write(name, df_prune)

@@ -19,7 +19,7 @@ CV = 0.8
 α = 0.9
 γ = 0.4
 max_depth = 2
-n = 10  #100 for sarp, 10 for vanilla
+n = 10 #100 for sarp, 10 for vanilla
 
 ### Load networks ###
 
@@ -172,7 +172,7 @@ end
 # Parameters
 pruning_functions_vanilla = Vector{Function}(undef, 1)
 pruning_functions_vanilla[1] = prune_bounds_vanilla
-pruning_functions = [prune_feasibility, prune_bounds]
+pruning_functions = [prune_bounds, prune_feasibility]
 constants = Dict("T_max" => 10.0, "alpha" => α, "gamma" => γ)
 deterministic_weights = ["cost"]
 random_weights = Dict("time" => ["mean", "variance", "covariance"])
@@ -192,7 +192,7 @@ params = Parameters(100,
 sampled_keys_CS = sample(collect(keys(graph_CS.nodes)), 10, replace=false)
 println("Sampled keys for Chicago Sketch: ", sampled_keys_CS)
 
-info_CS = aggregate_experiments(sampled_keys_CS, graph_CS, params, constants, pruning_functions_vanilla, info_update, pulse_score, n)
+info_CS = aggregate_experiments(sampled_keys_CS, graph_CS, params, constants, pruning_functions, info_update, pulse_score, n)
 CS_nondominated_paths = info_CS["number_nondominanted_paths"]
 CS_elapsed_time = info_CS["total_elapsed_time"]
 CS_pruned_by_bounds = info_CS["pruned_by_bounds"]
@@ -200,6 +200,7 @@ CS_pruned_by_feasibility = info_CS["pruned_by_feasibility"]
 CS_length_pruned_by_bounds = (info_CS["total_length_pruned_by_bounds"] ./ info_CS["pruned_by_bounds"])
 CS_length_pruned_by_feasibility = (info_CS["total_length_pruned_by_feasibility"] ./ info_CS["pruned_by_feasibility"])
 CS_preprocessing_time = info_CS["total_preprocessing_time"]
+CS_optimal_path_length = info_CS["total_optimal_path_length"]
 
 println("---------------------------------")
 println("Chicago Sketch")
@@ -208,7 +209,7 @@ println("---------------------------------")
 # CR
 sampled_keys_CR = sample(collect(keys(graph_CR.nodes)), 10, replace=false)
 println("Sampled keys for Chicago Regional: ", sampled_keys_CR)
-info_CR = aggregate_experiments(sampled_keys_CR, graph_CR, params, constants, pruning_functions_vanilla, info_update, pulse_score, n)
+info_CR = aggregate_experiments(sampled_keys_CR, graph_CR, params, constants, pruning_functions, info_update, pulse_score, n)
 
 CR_nondominated_paths = info_CR["number_nondominanted_paths"]
 CR_elapsed_time = info_CR["total_elapsed_time"]
@@ -217,6 +218,7 @@ CR_pruned_by_feasibility = info_CR["pruned_by_feasibility"]
 CR_length_pruned_by_bounds = (info_CR["total_length_pruned_by_bounds"] ./ info_CR["pruned_by_bounds"])
 CR_length_pruned_by_feasibility = (info_CR["total_length_pruned_by_feasibility"] ./ info_CR["pruned_by_feasibility"])
 CR_preprocessing_time = info_CR["total_preprocessing_time"]
+CR_optimal_path_length = info_CR["total_optimal_path_length"]
 
 println("---------------------------------")
 println("Chicago Regional")
@@ -226,7 +228,7 @@ println("---------------------------------")
 # SY
 sampled_keys_SY = sample(collect(keys(graph_SY.nodes)), 10, replace=false)
 println("Sampled keys for Sydney: ", sampled_keys_SY)
-info_SY = aggregate_experiments(sampled_keys_SY, graph_SY, params, constants, pruning_functions_vanilla, info_update, pulse_score, n)
+info_SY = aggregate_experiments(sampled_keys_SY, graph_SY, params, constants, pruning_functions, info_update, pulse_score, n)
 SY_nondominated_paths = info_SY["number_nondominanted_paths"]
 SY_elapsed_time = info_SY["total_elapsed_time"]
 SY_pruned_by_bounds = info_SY["pruned_by_bounds"]
@@ -234,6 +236,7 @@ SY_pruned_by_feasibility = info_SY["pruned_by_feasibility"]
 SY_length_pruned_by_bounds = (info_SY["total_length_pruned_by_bounds"] ./ info_SY["pruned_by_bounds"])
 SY_length_pruned_by_feasibility = (info_SY["total_length_pruned_by_feasibility"] ./ info_SY["pruned_by_feasibility"])
 SY_preprocessing_time = info_SY["total_preprocessing_time"]
+SY_optimal_path_length = info_SY["total_optimal_path_length"]
 println("---------------------------------")
 println("Sydney")
 println("---------------------------------")
@@ -242,36 +245,45 @@ println("---------------------------------")
 
 df_time = DataFrame(CS_t = CS_elapsed_time, 
                     CS_t_prep = CS_preprocessing_time)
-CSV.write("CS_time_vanilla.csv", df_time)
+CSV.write("CS_time_sarp.csv", df_time)
 
 df_time = DataFrame(CR_t = CR_elapsed_time, 
                     CR_t_prep = CR_preprocessing_time)
-CSV.write("CR_time_vanilla.csv", df_time)
+CSV.write("CR_time_sarp.csv", df_time)
 
 df_time = DataFrame(SY_t = SY_elapsed_time, 
                     SY_t_prep = SY_preprocessing_time)
-CSV.write("SY_time_vanilla.csv", df_time)
+CSV.write("SY_time_sarp.csv", df_time)
 
 df_prune = DataFrame(CS_b = CS_pruned_by_bounds, 
                         CS_i = CS_pruned_by_feasibility)
-CSV.write("CS_prune_vanilla.csv", df_prune)
+CSV.write("CS_prune_sarp.csv", df_prune)
 
 df_prune = DataFrame(CR_b = CR_pruned_by_bounds, 
                         CR_i = CR_pruned_by_feasibility)
-CSV.write("CR_prune_vanilla.csv", df_prune)
+CSV.write("CR_prune_sarp.csv", df_prune)
 
 df_prune = DataFrame(SY_b = SY_pruned_by_bounds, 
                         SY_i = SY_pruned_by_feasibility)
-CSV.write("SY_prune_vanilla.csv", df_prune)
+CSV.write("SY_prune_sarp.csv", df_prune)
 
 df_length_prune = DataFrame(CS_b = CS_length_pruned_by_bounds, 
                         CS_i = CS_length_pruned_by_feasibility)
-CSV.write("CS_length_vanilla.csv", df_length_prune)
+CSV.write("CS_length_sarp.csv", df_length_prune)
 
 df_length_prune = DataFrame(CR_b = CR_length_pruned_by_bounds, 
                         CR_i = CR_length_pruned_by_feasibility)
-CSV.write("CR_length_vanilla.csv", df_length_prune)
+CSV.write("CR_length_sarp.csv", df_length_prune)
 
 df_length_prune = DataFrame(SY_b = SY_length_pruned_by_bounds, 
                         SY_i = SY_length_pruned_by_feasibility)
-CSV.write("SY_length_vanilla.csv", df_length_prune)
+CSV.write("SY_length_sarp.csv", df_length_prune)
+
+df_length_path = DataFrame(CS_optlength = CS_optimal_path_length)
+CSV.write("CS_optimal_path_length_sarp.csv", df_length_path)
+
+df_length_path = DataFrame(CR_optlength = CR_optimal_path_length)
+CSV.write("CR_optimal_path_length_sarp.csv", df_length_path)
+
+df_length_path = DataFrame(SY_optlength = SY_optimal_path_length)
+CSV.write("SY_optimal_path_length_sarp.csv", df_length_path)
