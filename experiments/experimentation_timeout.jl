@@ -7,15 +7,19 @@ using CSV
 using PulseAlgorithm
 using PulseAlgorithm: Graph, Parameters, Problem, Pulse, preprocess!, run_pulse!, DefaultDict, PriorityQueue, enqueue!, dequeue!, PathInformation
 const PA = PulseAlgorithm
-include("util_regression.jl")
+include("util_new.jl")
 include("sydney_loader.jl")
 
-### Initialization ###
 Random.seed!(1234)
 path = raw"C:\Users\esteb\OneDrive - Universidad de los andes\Documentos\ANDES\Noveno Semestre\PA-RSPPs\PA-Experiments"
 
-### Load networks ###
+ρ = 1.0
 CV = 0.8
+α = 0.9
+γ = 0.4
+max_depth = 2
+
+### Load networks ###
 
 # Chicago Sketch (CS)
 net_CS = joinpath(path, raw"data\ChicagoSketch\ChicagoSketch_net.tntp")
@@ -25,7 +29,8 @@ toll_factor_CS = 0.02
 distance_factor_CS = 0.04
 
 graph_CS = PA.load_graph_from_ta(net_CS, flow_CS, "CS", CV, toll_factor_CS, distance_factor_CS)
-
+cov_CS = get_covariance_dict(graph_CS, "time", ρ, max_depth)
+graph_CS.covariance["time"] = cov_CS["time"]
 
 # Chicago Regional (CR)
 net_CR = joinpath(path, raw"data\ChicagoRegional\ChicagoRegional_net.tntp")
@@ -35,6 +40,8 @@ toll_factor_CR = 0.1
 distance_factor_CR = 0.25
 
 graph_CR = PA.load_graph_from_ta(net_CR, flow_CR, "CR", CV, toll_factor_CR, distance_factor_CR)
+cov_CR = get_covariance_dict(graph_CR, "time", ρ, max_depth)
+graph_CR.covariance["time"] = cov_CR["time"]
 
 # Sydney (SY)
 net_SY = joinpath(path, raw"data\Sydney\sydney_net.tntp")
@@ -44,7 +51,10 @@ toll_factor_SY = 0.1 #Use Chicago Regional's toll factor as a reference
 distance_factor_SY = 0.25 #Use Chicago Regional's toll factor as a reference
 
 graph_SY = load_graph_from_ta_without_flow_Sydney(net_SY, "SY", CV, toll_factor_SY, distance_factor_SY)
+cov_SY = get_covariance_dict(graph_SY, "time", ρ, max_depth)
+graph_SY.covariance["time"] = cov_SY["time"]
 
+#### TIMEOUT EXPERIMENTS ####
 ### Define Algorithms ###
 
 # PaSarp
@@ -86,8 +96,12 @@ function prune_feasibility(pulse_alg::Pulse,
     prob = cdf(dist, pulse_alg.problem.constants["T_max"])
     if mean > pulse_alg.problem.constants["T_max"]
         pass = true
+        pulse_alg.instance_info["pruned_by_feasibility"] += 1
+        pulse_alg.instance_info["length_pruned_by_feasibility"] += length(current_path)
     elseif mean > pulse_alg.problem.constants["T_max"] && prob < pulse_alg.problem.constants["alpha"]
         pass = true
+        pulse_alg.instance_info["pruned_by_feasibility"] += 1
+        pulse_alg.instance_info["length_pruned_by_feasibility"] += length(current_path)
     end
     return pass
 end
@@ -107,6 +121,8 @@ function prune_bounds(pulse_alg::Pulse,
             pulse_alg.current_optimal_path = new_path
         end
         pass = false
+        pulse_alg.instance_info["pruned_by_bounds"] += 1
+        pulse_alg.instance_info["length_pruned_by_bounds"] += length(current_path)
     end
     return pass
 end
@@ -122,56 +138,87 @@ function pulse_score(pulse_alg::Pulse,
     return pulse_alg.preprocessing.deterministic["cost"][current_path[end]]
 end
 
-### Regression Experiments ###
-sn = 2
-n = 2
-alphas = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-gammas = [0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.9, 1.0]
-rhos = [0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.9, 1.0]
-max_depths = [1, 2, 3]
+## Experiment configuration ##
+pruning_functions_bounds = Vector{Function}(undef, 1)
+pruning_functions_bounds[1] = prune_bounds
 
-sampled_keys_CS = sample(collect(keys(graph_CS.nodes)), sn, replace=false)
-info_CS = run_experiments(graph_CS, sampled_keys_CS, max_depths, rhos, gammas, alphas, [prune_feasibility, prune_bounds], info_update, pulse_score, n)
+budget = 10 * 60 #10 minutes
+constants = Dict("T_max" => 10.0, "alpha" => α, "gamma" => γ)
+deterministic_weights = ["cost"]
+random_weights = Dict("time" => ["mean", "variance", "covariance"])
+prep_deterministic_weights = ["cost"]
+prep_random_weights = Dict("time" => ["mean", "variance"])
+params = Parameters(100, 
+                    false, 
+                    exploration_order, 
+                    deterministic_weights, 
+                    random_weights, 
+                    prep_deterministic_weights,
+                    prep_random_weights,
+                    budget,
+                    false)
+prep_det_weights = ["cost", "weight"]
+params_weight = Parameters(100, 
+                    false, 
+                    exploration_order, 
+                    deterministic_weights, 
+                    random_weights, 
+                    prep_det_weights,
+                    prep_random_weights,
+                    budget,
+                    false)
 
-sampled_keys_CR = sample(collect(keys(graph_CR.nodes)), sn, replace=false)
-info_CR = run_experiments(graph_CR, sampled_keys_CR, max_depths, rhos, gammas, alphas, [prune_feasibility, prune_bounds], info_update, pulse_score, n)
 
-sampled_keys_SY = sample(collect(keys(graph_SY.nodes)), sn, replace=false)
-info_SY = run_experiments(graph_SY, sampled_keys_SY, max_depths, rhos, gammas, alphas, [prune_feasibility, prune_bounds], info_update, pulse_score, n)
 
-CS_elapsed_time = info_CS["elapsed_time"]
-CS_preprocessing_time = info_CS["preprocessing_time"]
-CS_time_budget = info_CS["time_budget"]
-CS_alpha = info_CS["alpha"]
-CS_gamma = info_CS["gamma"]
-CS_rho = info_CS["rho"]
-CS_max_depth = info_CS["max_depth"]
+# Chicago Regional
+df = CSV.read("CR_bounds_experiment.csv", DataFrame)
+timeout_df = df[df.timeout .== true, :]
+println("Number of timeouts: ", nrow(timeout_df))
 
-CR_elapsed_time = info_CR["elapsed_time"]
-CR_preprocessing_time = info_CR["preprocessing_time"]
-CR_time_budget = info_CR["time_budget"]
-CR_alpha = info_CR["alpha"]
-CR_gamma = info_CR["gamma"]
-CR_rho = info_CR["rho"]
-CR_max_depth = info_CR["max_depth"]
+pair_dict_CR = Dict{Int64, Vector{Int64}}()
+for row in eachrow(timeout_df)
+    source = row.source
+    target = row.target
+    if haskey(pair_dict_CR, target)
+        push!(pair_dict_CR[target], source)
+    else
+        pair_dict_CR[target] = [source]
+    end
+end
 
-SY_elapsed_time = info_SY["elapsed_time"]
-SY_preprocessing_time = info_SY["preprocessing_time"]
-SY_time_budget = info_SY["time_budget"]
-SY_alpha = info_SY["alpha"]
-SY_gamma = info_SY["gamma"]
-SY_rho = info_SY["rho"]
-SY_max_depth = info_SY["max_depth"]
+experiments_sarp(pair_dict_CR, 
+                    graph_CR, 
+                    params,
+                    params_weight,
+                    constants, 
+                    pruning_functions_bounds, 
+                    info_update, 
+                    pulse_score, 
+                    "CR_full")
 
-df_reg = DataFrame(
-    Elapsed_Time = vcat(CS_elapsed_time, CR_elapsed_time, SY_elapsed_time),
-    Preprocessing_Time = vcat(CS_preprocessing_time, CR_preprocessing_time, SY_preprocessing_time),
-    Time_Budget = vcat(CS_time_budget, CR_time_budget, SY_time_budget),
-    Alpha = vcat(CS_alpha, CR_alpha, SY_alpha),
-    Gamma = vcat(CS_gamma, CR_gamma, SY_gamma),
-    Rho = vcat(CS_rho, CR_rho, SY_rho),
-    Max_Depth = vcat(CS_max_depth, CR_max_depth, SY_max_depth),
-    Network = vcat(repeat(["CS"], length(CS_elapsed_time)), repeat(["CR"], length(CR_elapsed_time)), repeat(["SY"], length(SY_elapsed_time))),
-)
+# Sydney
+budget = 10 * 60 #10 minutes
+df = CSV.read("SY_bounds_experiment.csv", DataFrame)
+timeout_df = df[df.timeout .== true, :]
+println("Number of timeouts: ", nrow(timeout_df))
 
-CSV.write("regression.csv", df_reg)
+pair_dict_SY = Dict{Int64, Vector{Int64}}()
+for row in eachrow(timeout_df)
+    source = row.source
+    target = row.target
+    if haskey(pair_dict_SY, target)
+        push!(pair_dict_SY[target], source)
+    else
+        pair_dict_SY[target] = [source]
+    end
+end
+
+experiments_sarp(pair_dict_SY, 
+                    graph_SY,
+                    params,
+                    params_weight,
+                    constants, 
+                    pruning_functions_bounds, 
+                    info_update, 
+                    pulse_score, 
+                    "SY_timeout")

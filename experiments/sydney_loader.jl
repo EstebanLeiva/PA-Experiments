@@ -229,10 +229,10 @@ function load_graph_from_ta_without_flow(tntp_file_dir::String, network_name::St
             fft = ta_data.free_flow_time[i]
         end
         mean = fft * (1 + ta_data.B[i] * (cost_flow / ta_data.capacity[i])^ta_data.power[i])
-        variance = CV * abs(mean - fft)
+        variance = (CV * abs(mean - fft))^2
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
-        
-        deterministic_info = Dict{String, Float64}("cost" => cost)
+
+        deterministic_info = Dict{String, Float64}("cost" => cost, "weight" => 1.0)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
         PA.add_link!(new_graph, start, dst, deterministic_info, random_info)
     end
@@ -259,10 +259,10 @@ function load_graph_from_ta_without_flow_Sydney(tntp_file_dir::String, network_n
             fft = ta_data.free_flow_time[i]
         end
         mean = fft * (1 + ta_data.B[i] * (cost_flow / ta_data.capacity[i])^ta_data.power[i])
-        variance = mean * CV
+        variance = (mean * CV)^2
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
         
-        deterministic_info = Dict{String, Float64}("cost" => cost)
+        deterministic_info = Dict{String, Float64}("cost" => cost, "weight" => 1.0)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
         PA.add_link!(new_graph, start, dst, deterministic_info, random_info)
     end
@@ -289,10 +289,10 @@ function reg_load_graph_from_ta_without_flow_Sydney(tntp_file_dir::String, netwo
             fft = ta_data.free_flow_time[i]
         end
         mean = fft * (1 + ta_data.B[i] * (cost_flow / ta_data.capacity[i])^ta_data.power[i])
-        variance = mean * CV
+        variance = (mean * CV)^2
         cost = mean + toll_factor * ta_data.toll[i] + length_factor * ta_data.link_length[i]
         
-        deterministic_info = Dict{String, Float64}("cost" => cost, "weight" => 1)
+        deterministic_info = Dict{String, Float64}("cost" => cost, "weight" => 1.0)
         random_info = Dict{String, Dict{String, Float64}}("time" => Dict("mean" => mean, "variance" => variance))
         PA.add_link!(new_graph, start, dst, deterministic_info, random_info)
     end
