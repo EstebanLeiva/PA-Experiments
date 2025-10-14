@@ -127,8 +127,8 @@ end
 sn = 2
 n = 2
 alphas = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
-gammas = [0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.9, 1.0]
-rhos = [0.1, 0.2, 0.4, 0.5, 0.6, 0.7, 0.9, 1.0]
+gammas = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+rhos = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 max_depths = [1, 2, 3]
 sampled_keys_CS = sample(collect(keys(graph_CS.nodes)), sn, replace=false)
 info_CS = run_experiments(graph_CS, sampled_keys_CS, max_depths, rhos, gammas, alphas, [prune_feasibility, prune_bounds], info_update, pulse_score, n)
